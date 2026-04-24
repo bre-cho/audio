@@ -7,7 +7,6 @@ from celery.exceptions import Retry
 
 from app.repositories.job_repo import JobRepository
 
-
 VALID_STATUSES = {"queued", "processing", "retrying", "succeeded", "failed"}
 
 
@@ -38,7 +37,7 @@ def test_retrying_status_set_before_max_retries(db_session, tmp_path, monkeypatc
              "app.workers.audio_tasks.write_audio_artifacts",
              side_effect=RuntimeError("transient error"),
          ), \
-         patch.object(process_tts_job._get_current_object(), "retry", side_effect=Retry):
+         patch("app.workers.audio_tasks.process_tts_job.retry", side_effect=Retry):
         with pytest.raises(Retry):
             process_tts_job.run(str(job.id))
 
@@ -71,7 +70,7 @@ def test_failed_status_set_on_final_retry(db_session, tmp_path, monkeypatch):
              "app.workers.audio_tasks.write_audio_artifacts",
              side_effect=RuntimeError("permanent error"),
          ), \
-         patch.object(process_tts_job._get_current_object(), "retry", side_effect=Retry):
+         patch("app.workers.audio_tasks.process_tts_job.retry", side_effect=Retry):
         with pytest.raises(Retry):
             process_tts_job.run(str(job.id))
 
