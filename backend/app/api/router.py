@@ -1,0 +1,12 @@
+from fastapi import APIRouter
+from app.api import billing, conversation, jobs, projects, providers, tts, voice_clone, voices
+
+api_router = APIRouter()
+api_router.include_router(providers.router, prefix='/providers', tags=['providers'])
+api_router.include_router(voices.router, prefix='/voices', tags=['voices'])
+api_router.include_router(tts.router, prefix='/tts', tags=['tts'])
+api_router.include_router(conversation.router, prefix='/conversation', tags=['conversation'])
+api_router.include_router(voice_clone.router, prefix='/voice-clone', tags=['voice-clone'])
+api_router.include_router(projects.router, prefix='/projects', tags=['projects'])
+api_router.include_router(jobs.router, prefix='/jobs', tags=['jobs'])
+api_router.include_router(billing.router, prefix='/billing', tags=['billing'])

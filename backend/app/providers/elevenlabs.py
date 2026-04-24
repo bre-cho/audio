@@ -1,0 +1,14 @@
+from app.providers.base import BaseTTSProvider
+
+
+class ElevenLabsProvider(BaseTTSProvider):
+    code = 'elevenlabs'
+
+    def list_voices(self, filters: dict | None = None) -> list[dict]:
+        return []
+
+    def generate_speech(self, payload: dict) -> dict:
+        return {'status': 'queued', 'provider': self.code}
+
+    def clone_voice(self, payload: dict) -> dict:
+        return {'status': 'queued', 'provider': self.code}
