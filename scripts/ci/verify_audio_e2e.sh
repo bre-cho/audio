@@ -31,7 +31,10 @@ for p in sys.argv[1].split("."):
     else: cur=None
 print("" if cur is None else cur)' "$1"; }
 
-$DOCKER_COMPOSE_BIN up -d >> "$REPORT_FILE" 2>&1 || fail "docker compose up failed"
+SKIP_STACK_UP="${SKIP_STACK_UP:-0}"
+if [[ "$SKIP_STACK_UP" != "1" ]]; then
+  $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 || fail "docker compose up failed"
+fi
 python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 || fail "stack not healthy"
 $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api"
 

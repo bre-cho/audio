@@ -51,11 +51,14 @@ $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&
 $DOCKER_COMPOSE_BIN logs --tail=100 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
 $DOCKER_COMPOSE_BIN logs --tail=100 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
 
-if curl -fsSI "$BASE_URL/artifacts/" >> "$REPORT_FILE" 2>&1; then
+mkdir -p artifacts/audio
+printf "probe" > artifacts/audio/static-probe.txt
+if curl -fsSI "$BASE_URL/artifacts/audio/static-probe.txt" >> "$REPORT_FILE" 2>&1; then
   ok "artifacts static route reachable"
 else
   fail "artifacts static route reachable"
 fi
+rm -f artifacts/audio/static-probe.txt
 
 if [[ -d backend/tests ]]; then
   pytest -q -k "audio or narration or voice_clone" >> "$REPORT_FILE" 2>&1 || fail "pytest audio subset failed"
