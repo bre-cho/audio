@@ -16,7 +16,11 @@ from app.main import create_app
 
 @pytest.fixture(scope="session")
 def db_engine():
-    engine = create_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_engine(
+        settings.database_url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": 3},
+    )
     Base.metadata.create_all(bind=engine)
     yield engine
     engine.dispose()

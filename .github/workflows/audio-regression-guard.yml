@@ -44,6 +44,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg://app:app@localhost:5432/app
       REDIS_URL: redis://localhost:6379/0
       ARTIFACT_ROOT: /tmp/artifacts
+      AUDIO_ARTIFACT_DIR: /tmp/artifacts/audio
 
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +63,13 @@ jobs:
           BACKEND_SCHEMA_BOOTSTRAP: metadata-create-all
         run: python -c "from app.main import app"
 
+      - name: Prepare artifact directory
+        run: mkdir -p /tmp/artifacts/audio
+
       - name: Run audio regression guard
         working-directory: backend
-        run: pytest tests/test_audio_regression_guard.py -q
+        run: |
+          pytest \
+            tests/test_audio_regression_guard.py \
+            tests/test_audio_worker_artifact_guard.py \
+            -q

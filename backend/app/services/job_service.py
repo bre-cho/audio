@@ -5,6 +5,10 @@ from app.schemas.job import JobStatusOut
 from app.workers.audio_tasks import enqueue_tts_job, enqueue_batch_job
 
 
+class UnsupportedRetryJobTypeError(Exception):
+    pass
+
+
 class JobService:
     def __init__(self, db: Session) -> None:
         self.repo = JobRepository(db)
@@ -32,6 +36,6 @@ class JobService:
         elif job.job_type == 'narration':
             enqueue_batch_job(str(job.id))
         else:
-            raise ValueError(f"Unsupported job type for retry: {job.job_type}")
+            raise UnsupportedRetryJobTypeError(f"Unsupported job type for retry: {job.job_type}")
 
         return JobStatusOut.model_validate(job)
