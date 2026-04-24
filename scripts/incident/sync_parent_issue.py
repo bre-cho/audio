@@ -32,9 +32,13 @@ def _gh(method: str, url: str, token: str, payload: dict | None = None) -> dict:
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=20) as r:
-        raw = r.read().decode()
-        return json.loads(raw) if raw else {}
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            raw = r.read().decode()
+            return json.loads(raw) if raw else {}
+    except urllib.request.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        raise SystemExit(f"GitHub API error {exc.code} {method} {url}: {body}") from exc
 
 
 def find_issue(repo: str, token: str, parent_key: str) -> dict | None:

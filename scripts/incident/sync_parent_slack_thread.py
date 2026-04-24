@@ -35,6 +35,13 @@ def _slack(method: str, token: str, payload: dict) -> dict:
         return json.loads(raw) if raw else {}
 
 
+def _slack_checked(method: str, token: str, payload: dict) -> dict:
+    res = _slack(method, token, payload)
+    if not res.get("ok"):
+        raise SystemExit(f"Slack API error ({method}): {res.get('error', 'unknown')}")
+    return res
+
+
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
@@ -81,7 +88,7 @@ def main() -> None:
             f"issue={issue_url}\n"
             f"summary={summary}"
         )
-        res = _slack("chat.postMessage", token, {"channel": channel, "text": msg})
+        res = _slack_checked("chat.postMessage", token, {"channel": channel, "text": msg})
         parent["slack_channel_id"] = channel
         parent["slack_thread_ts"] = res.get("ts")
         child["action"] = "open_parent_thread"
@@ -91,7 +98,7 @@ def main() -> None:
             f"↪️ update | parent=`{key}` | status=`{status}` "
             f"| run=`{run_id}` | summary={summary}"
         )
-        _slack(
+        _slack_checked(
             "chat.postMessage",
             token,
             {"channel": channel, "thread_ts": thread_ts, "text": msg},
