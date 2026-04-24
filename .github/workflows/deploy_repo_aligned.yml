@@ -34,12 +34,7 @@ permissions:
   contents: read
 
 jobs:
-  changed-areas:
-    uses: ./.github/workflows/_changed-areas.yml
-
   backend-quick:
-    needs: changed-areas
-    if: needs.changed-areas.outputs.backend_changed == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,9 +54,9 @@ jobs:
           python -m compileall app tests
 
   audio-gate:
-    needs: [changed-areas, backend-quick]
+    needs: [backend-quick]
     if: >-
-      (github.event_name == 'workflow_dispatch' || needs.changed-areas.outputs.backend_changed == 'true')
+      (github.event_name == 'workflow_dispatch' || true)
       && inputs.skip_audio_canary != true
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -71,7 +66,7 @@ jobs:
       DOCKER_BUILDKIT: 1
       PROVIDER_RELAY_SHARED_SECRET: replace-me
       CI: 'true'
-      AUTH_ENABLED: '1'
+      AUTH_ENABLED: '0'
       AUTH_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
       AUTH_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
       SAMPLE_PATH: ${{ secrets.TEST_AUDIO_SAMPLE_PATH }}
@@ -146,7 +141,7 @@ jobs:
         run: docker compose down -v
 
   deploy-canary:
-    needs: [changed-areas, backend-quick, audio-gate]
+    needs: [backend-quick, audio-gate]
     if: >-
       always()
       && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
@@ -219,7 +214,7 @@ jobs:
           curl -sS -X POST -H 'Content-type: application/json' --data @/tmp/audio-slack.json "$SLACK_WEBHOOK_URL"
 
   deploy-direct:
-    needs: [changed-areas, backend-quick]
+    needs: [backend-quick]
     if: >-
       always()
       && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')

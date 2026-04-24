@@ -152,6 +152,24 @@ def main() -> None:
         "cluster_count_30m": cluster_count,
         "last_seen_age_sec": last_seen_age_sec,
     }
+
+    # Restore persisted issue + slack mapping so sync scripts can reuse them.
+    # Memory is a cache only; GitHub Issue is authoritative (mapping_source).
+    existing_parent = next(
+        (p for p in mem["parents"] if p.get("parent_incident_key") == parent_key),
+        None,
+    )
+    if existing_parent:
+        # Only restore issue_url from memory cache — slack mapping is
+        # re-hydrated from the issue body by sync_parent_issue.py.
+        if not parent_state.get("issue_url") and existing_parent.get("issue_url"):
+            parent_state["issue_url"] = existing_parent["issue_url"]
+        if not parent_state.get("issue_number") and existing_parent.get("issue_number"):
+            parent_state["issue_number"] = existing_parent["issue_number"]
+
+    parent_state["mapping_source"] = "github_issue"
+    parent_state["mapping_lock"] = "authoritative"
+
     data["parent_incident"] = parent_state
 
     is_child = cluster_count > 1
