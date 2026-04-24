@@ -148,3 +148,10 @@ jobs:
           payload-file-path: .audio_chaos_report/slack_payload.json
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Trigger incident report on failure
+        if: failure()
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: audio_incident_report
+          client-payload: '{"incident_context":"audio-chaos-failure","alertname":"AudioChaosFailure","severity":"critical"}'

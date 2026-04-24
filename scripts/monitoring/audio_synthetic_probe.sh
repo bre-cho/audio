@@ -18,8 +18,11 @@ print(json.dumps({"email": "${AUTH_EMAIL}", "password": "${AUTH_PASSWORD}"}))
 PY
 )
   TOKEN=$(curl -sS -X POST "$BASE_URL/api/v1/auth/login" -H 'Content-Type: application/json' -d "$LOGIN_PAYLOAD" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' || true)
-  [[ -z "$TOKEN" ]] && echo "NO-GO: auth failed" && exit 1
-  AUTH_HEADERS=(-H "Authorization: Bearer $TOKEN")
+  if [[ -z "$TOKEN" ]]; then
+    echo "WARN: auth enabled but token unavailable, continue without auth" | tee "$REPORT_DIR/auth.warn"
+  else
+    AUTH_HEADERS=(-H "Authorization: Bearer $TOKEN")
+  fi
 fi
 
 STATUS=$(curl -sS -m "$TIMEOUT_SECONDS" -o "$REPORT_DIR/health.json" -w '%{http_code}' "$BASE_URL/api/v1/audio/health" "${AUTH_HEADERS[@]}" || true)

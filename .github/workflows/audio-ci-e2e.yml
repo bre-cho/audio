@@ -150,6 +150,13 @@ jobs:
           webhook-type: incoming-webhook
           payload-file-path: artifacts/audio-ci/slack-payload.json
 
+      - name: Trigger incident report on failure
+        if: failure()
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          event-type: audio_incident_report
+          client-payload: '{"incident_context":"audio-ci-failure","alertname":"AudioCiFailure","severity":"critical"}'
+
       - name: Tear down stack
         if: always()
         run: docker compose down -v
