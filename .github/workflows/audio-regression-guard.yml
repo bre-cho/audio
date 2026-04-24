@@ -72,4 +72,5 @@ jobs:
           pytest \
             tests/test_audio_regression_guard.py \
             tests/test_audio_worker_artifact_guard.py \
+            tests/test_worker_retry_state_semantics.py \
             -q

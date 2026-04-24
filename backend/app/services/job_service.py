@@ -3,6 +3,14 @@ from sqlalchemy.orm import Session
 from app.repositories.job_repo import JobRepository
 from app.schemas.job import JobStatusOut
 from app.workers.audio_tasks import enqueue_tts_job, enqueue_batch_job
+from app.workers.clone_tasks import enqueue_clone_job, enqueue_clone_preview_job
+
+RETRYABLE_JOB_TYPES = {
+    "tts_preview",
+    "narration",
+    "clone",
+    "clone_preview",
+}
 
 
 class UnsupportedRetryJobTypeError(Exception):
@@ -25,7 +33,7 @@ class JobService:
         if not job:
             raise ValueError('Job not found')
 
-        if job.job_type not in {'tts_preview', 'narration'}:
+        if job.job_type not in RETRYABLE_JOB_TYPES:
             raise UnsupportedRetryJobTypeError(f"Unsupported job type for retry: {job.job_type}")
 
         job.status = 'queued'
@@ -39,5 +47,9 @@ class JobService:
             enqueue_tts_job(str(job.id))
         elif job.job_type == 'narration':
             enqueue_batch_job(str(job.id))
+        elif job.job_type == 'clone':
+            enqueue_clone_job(str(job.id))
+        elif job.job_type == 'clone_preview':
+            enqueue_clone_preview_job(str(job.id))
 
         return JobStatusOut.model_validate(job)
