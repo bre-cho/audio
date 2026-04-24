@@ -219,11 +219,56 @@ jobs:
         if: always() && env.DRIFT_LEVEL == 'needs_human_review'
         run: echo "::warning::Skipping risky auto-overwrite/post actions due to multi-source state corruption"
 
+      - name: Finalize resolved parent incident
+        if: env.PARENT_STATUS == 'resolved' && (env.DRIFT_LEVEL == 'none' || env.DRIFT_LEVEL == 'safe_auto_fix')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          AUTO_CLOSE_PARENT_ISSUE: "0"
+        run: |
+          python scripts/incident/finalize_parent_incident.py \
+            --repo "${{ github.repository }}" \
+            --classification .incident_classification.json \
+            --output POSTMORTEM_SEED.md
+
+      - name: Read finalizer status
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import json
+          try:
+              print("FINALIZER_STATUS=" + json.load(open(".incident_classification.json")).get("finalizer", {}).get("status", "not_finalized"))
+          except Exception:
+              print("FINALIZER_STATUS=not_finalized")
+          PY
+
+      - name: Print finalizer status
+        if: always()
+        run: echo "finalizer=${{ env.FINALIZER_STATUS }}"
+
+      - name: Print postmortem seed summary
+        if: env.FINALIZER_STATUS == 'finalized'
+        run: head -80 POSTMORTEM_SEED.md
+
+      - name: Update knowledge memory from postmortem
+        if: env.FINALIZER_STATUS == 'finalized'
+        run: |
+          python scripts/incident/update_postmortem_memory.py \
+            --classification .incident_classification.json \
+            --postmortem POSTMORTEM_SEED.md
+
       - name: Collect root cause snapshot
         run: bash scripts/incident/collect_root_cause_snapshot.sh
 
       - name: Generate markdown incident report
         run: bash scripts/incident/generate_incident_report.sh
+
+      - name: Re-render incident report with finalizer data
+        if: always()
+        run: |
+          python scripts/incident/render_incident_report.py \
+            --classification .incident_classification.json \
+            --output incident_report.md
 
       - name: Upload incident artifacts
         if: always()
@@ -236,6 +281,25 @@ jobs:
             .incident_classification.json
             .incident_memory.json
             incident_report.md
+
+      - name: Upload postmortem artifacts
+        if: always() && env.FINALIZER_STATUS == 'finalized'
+        uses: actions/upload-artifact@v4
+        with:
+          name: postmortem-seed-${{ github.event.workflow_run.id || github.run_id }}
+          path: |
+            POSTMORTEM_SEED.md
+            .incident_classification.json
+
+      - name: Upload knowledge artifacts
+        if: always() && env.FINALIZER_STATUS == 'finalized'
+        uses: actions/upload-artifact@v4
+        with:
+          name: postmortem-knowledge-${{ github.event.workflow_run.id || github.run_id }}
+          path: |
+            .incident_knowledge.json
+            regression_tests_seed.md
+            regression_tests_seed.json
 
       - name: Build Slack payload
         if: always() && env.ESC_MODE != 'suppress'

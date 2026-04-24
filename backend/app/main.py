@@ -1,7 +1,11 @@
 import os
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
 from app.api.router import api_router
+from app.core.config import ARTIFACT_ROOT
 
 
 def create_app() -> FastAPI:
@@ -12,6 +16,11 @@ def create_app() -> FastAPI:
         return {'status': 'ok'}
 
     app.include_router(api_router, prefix='/api/v1')
+
+    # Serve artifact files (audio previews and outputs)
+    Path(ARTIFACT_ROOT).mkdir(parents=True, exist_ok=True)
+    app.mount('/artifacts', StaticFiles(directory=ARTIFACT_ROOT), name='artifacts')
+
     return app
 
 

@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,3 +17,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+ARTIFACT_ROOT = os.getenv("ARTIFACT_ROOT", "/artifacts")
+AUDIO_ARTIFACT_DIR = os.getenv("AUDIO_ARTIFACT_DIR", f"{ARTIFACT_ROOT}/audio")

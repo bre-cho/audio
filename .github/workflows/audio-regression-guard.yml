@@ -1,0 +1,67 @@
+name: Audio Regression Guard
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/**"
+      - "backend/tests/**"
+      - ".github/workflows/audio-regression-guard.yml"
+  push:
+    branches: [main, develop]
+
+jobs:
+  audio-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://app:app@localhost:5432/app
+      REDIS_URL: redis://localhost:6379/0
+      ARTIFACT_ROOT: /tmp/artifacts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        working-directory: backend
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Initialize database tables
+        working-directory: backend
+        env:
+          BACKEND_SCHEMA_BOOTSTRAP: metadata-create-all
+        run: python -c "from app.main import app"
+
+      - name: Run audio regression guard
+        working-directory: backend
+        run: pytest tests/test_audio_regression_guard.py -q

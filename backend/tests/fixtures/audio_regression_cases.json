@@ -1,0 +1,14 @@
+[
+  {
+    "id": "audio_preview_basic_success",
+    "input": {
+      "text": "hello world",
+      "voice": "default"
+    },
+    "expected": {
+      "route": "audio_preview",
+      "job_status": "succeeded",
+      "requires_artifact": true
+    }
+  }
+]
