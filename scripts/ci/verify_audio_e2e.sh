@@ -96,7 +96,12 @@ if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
       curl -fsSI "$BASE_URL$preview_url" >> "$REPORT_FILE" 2>&1 \
         && log "OK: preview artifact reachable: $preview_url" \
         || fail "preview artifact not reachable: $preview_url"
-      preview_content_type=$(curl -fsSI "$BASE_URL$preview_url" | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' | tr -d '\r')
+      preview_content_type=$(
+        curl -fsSI "$BASE_URL$preview_url" 2>>"$REPORT_FILE" \
+          | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' \
+          | tr -d '\r' \
+        || true
+      )
       echo "$preview_content_type" | grep -q "audio" \
         && log "OK: preview content-type is audio: $preview_content_type" \
         || fail "preview artifact content-type is not audio: $preview_content_type"
@@ -108,7 +113,12 @@ if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
       curl -fsSI "$BASE_URL$output_url" >> "$REPORT_FILE" 2>&1 \
         && log "OK: output artifact reachable: $output_url" \
         || fail "output artifact not reachable: $output_url"
-      output_content_type=$(curl -fsSI "$BASE_URL$output_url" | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' | tr -d '\r')
+      output_content_type=$(
+        curl -fsSI "$BASE_URL$output_url" 2>>"$REPORT_FILE" \
+          | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' \
+          | tr -d '\r' \
+        || true
+      )
       echo "$output_content_type" | grep -q "audio" \
         && log "OK: output content-type is audio: $output_content_type" \
         || fail "output artifact content-type is not audio: $output_content_type"
