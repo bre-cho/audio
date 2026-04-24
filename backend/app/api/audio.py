@@ -17,7 +17,7 @@ router = APIRouter()
 
 class AudioPreviewRequest(BaseModel):
     text: str
-    voice: str | None = "default"
+    voice: str = "default"
     voice_profile_id: str | None = None
     provider: str | None = None
 

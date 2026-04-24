@@ -31,5 +31,7 @@ class JobService:
             enqueue_tts_job(str(job.id))
         elif job.job_type == 'narration':
             enqueue_batch_job(str(job.id))
+        else:
+            raise ValueError(f"Unsupported job type for retry: {job.job_type}")
 
         return JobStatusOut.model_validate(job)
