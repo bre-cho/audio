@@ -106,7 +106,8 @@ def render_postmortem(data):
 
     # Follow-up owners
     owners = actions.get("owners", []) or data.get("escalation", {}).get("mention_team", "oncall")
-    if isinstance(owners, list):
+    # owners may be a list (from action map) or a plain string (from escalation mention_team)
+    if isinstance(owners, (list, tuple)):
         owner_lines = "\n".join(f"- {x}" for x in owners)
     else:
         owner_lines = f"- {owners}"

@@ -8,6 +8,9 @@ from pathlib import Path
 MAX_CONFIDENCE = 0.99
 GAP_WEIGHT = 0.08
 SECONDARY_CAUSE_THRESHOLD = 0.35
+# Knowledge-memory confidence boost parameters
+CONFIDENCE_BOOST_PER_OCCURRENCE = 0.1
+MAX_CONFIDENCE_BOOST = 0.3
 
 
 def load_json(p):
@@ -221,7 +224,7 @@ def main():
     matched_pattern = None
     for p in patterns:
         if p["root_cause"] == root:
-            confidence = round(min(MAX_CONFIDENCE, confidence + min(0.1 * p["count"], 0.3)), 2)
+            confidence = round(min(MAX_CONFIDENCE, confidence + min(CONFIDENCE_BOOST_PER_OCCURRENCE * p["count"], MAX_CONFIDENCE_BOOST)), 2)
             matched_pattern = p
             break
 

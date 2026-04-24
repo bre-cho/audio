@@ -2,7 +2,11 @@ from pathlib import Path
 
 from app.core.config import AUDIO_ARTIFACT_DIR
 
-# Minimal valid ID3v2 header — 10 bytes — recognised as audio/mpeg by most players
+# Minimal valid ID3v2.3 tag header (10 bytes):
+#   b"\x49\x44\x33"  → "ID3" signature
+#   b"\x03\x00"      → version 2.3, revision 0
+#   b"\x00"          → flags (none set)
+#   b"\x00\x00\x00\x00"  → synchsafe size = 0 (no tag frames follow)
 _MIN_MP3_PLACEHOLDER = b"\x49\x44\x33\x03\x00\x00\x00\x00\x00\x00"
 
 

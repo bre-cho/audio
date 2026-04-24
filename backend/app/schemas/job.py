@@ -21,4 +21,5 @@ class JobStatusOut(BaseModel):
     @computed_field
     @property
     def job_id(self) -> UUID:
+        """Alias for `id` — exposed as `job_id` to match client and worker conventions."""
         return self.id

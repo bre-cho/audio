@@ -12,6 +12,8 @@ on:
 jobs:
   audio-regression:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     services:
       postgres:
@@ -54,7 +56,7 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Bootstrap schema
+      - name: Initialize database tables
         working-directory: backend
         env:
           BACKEND_SCHEMA_BOOTSTRAP: metadata-create-all
