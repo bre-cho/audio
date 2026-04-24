@@ -65,14 +65,48 @@ narration_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/narration" -H 'Conten
 NARRATION_JOB_ID=$(printf '%s' "$narration_resp" | json_get id)
 [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]] && log "OK: narration job created $NARRATION_JOB_ID" || log "WARN: narration did not return job id"
 
+# Poll preview job and verify artifact contract (preview_url / output_url)
+if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
+  status=""
+  for _ in {1..40}; do
+    sleep 5
+    job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$PREVIEW_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
+    printf '%s' "$job_resp" > /tmp/audio_preview_job_status.json
+    status=$(printf '%s' "$job_resp" | json_get status)
+    log "preview poll status=$status"
+    if [[ "$status" == "succeeded" || "$status" == "completed" ]]; then
+      log "OK: preview job succeeded"
+      break
+    fi
+    if [[ "$status" == "failed" || "$status" == "error" ]]; then
+      fail "preview job failed"
+      break
+    fi
+  done
+  if [[ "${status:-}" != "succeeded" && "${status:-}" != "completed" ]]; then
+    log "last preview response:"
+    cat /tmp/audio_preview_job_status.json >> "$REPORT_FILE" || true
+    fail "preview job did not finish within timeout, last status=${status:-unknown}"
+  else
+    preview_url=$(printf '%s' "$(cat /tmp/audio_preview_job_status.json)" | json_get preview_url)
+    output_url=$(printf '%s' "$(cat /tmp/audio_preview_job_status.json)" | json_get output_url)
+    if [[ -z "$preview_url" && -z "$output_url" ]]; then
+      fail "preview job succeeded but no preview_url/output_url found"
+    else
+      log "OK: output_url=$output_url preview_url=$preview_url"
+    fi
+  fi
+fi
+
+# Poll narration job — only verify it reaches succeeded state
 if [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
   status=""
   for _ in {1..40}; do
     sleep 5
     job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$NARRATION_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
-    printf '%s' "$job_resp" > /tmp/audio_job_status.json
+    printf '%s' "$job_resp" > /tmp/audio_narration_job_status.json
     status=$(printf '%s' "$job_resp" | json_get status)
-    log "poll status=$status"
+    log "narration poll status=$status"
     if [[ "$status" == "succeeded" || "$status" == "completed" ]]; then
       log "OK: narration job succeeded"
       break
@@ -83,17 +117,9 @@ if [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
     fi
   done
   if [[ "${status:-}" != "succeeded" && "${status:-}" != "completed" ]]; then
-    log "last response:"
-    cat /tmp/audio_job_status.json >> "$REPORT_FILE" || true
+    log "last narration response:"
+    cat /tmp/audio_narration_job_status.json >> "$REPORT_FILE" || true
     fail "narration job did not finish within timeout, last status=${status:-unknown}"
-  else
-    preview_url=$(printf '%s' "$(cat /tmp/audio_job_status.json)" | json_get preview_url)
-    output_url=$(printf '%s' "$(cat /tmp/audio_job_status.json)" | json_get output_url)
-    if [[ -z "$preview_url" && -z "$output_url" ]]; then
-      fail "job succeeded but no preview_url/output_url found"
-    else
-      log "OK: output_url=$output_url preview_url=$preview_url"
-    fi
   fi
 fi
 

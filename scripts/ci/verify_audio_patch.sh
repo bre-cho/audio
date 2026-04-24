@@ -25,6 +25,7 @@ mods=[
   'backend.app.services.tts_service',
   'backend.app.services.voice_clone_service',
   'backend.app.workers.audio_tasks',
+  'backend.app.workers.clone_tasks',
 ]
 for m in mods:
     importlib.import_module(m)
