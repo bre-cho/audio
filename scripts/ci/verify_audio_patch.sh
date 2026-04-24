@@ -22,8 +22,9 @@ python - <<'PY' >> "$REPORT_FILE" 2>&1 || exit 7
 import importlib
 mods=[
   'backend.app.api.audio',
-  'backend.app.services.audio.voice_clone_service',
-  'backend.app.services.audio.narration_service',
+  'backend.app.services.tts_service',
+  'backend.app.services.voice_clone_service',
+  'backend.app.workers.audio_tasks',
 ]
 for m in mods:
     importlib.import_module(m)

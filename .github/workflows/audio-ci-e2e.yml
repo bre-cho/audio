@@ -1,6 +1,7 @@
 name: audio-ci-e2e
 
 on:
+  workflow_call:
   workflow_dispatch:
     inputs:
       auth_enabled:
