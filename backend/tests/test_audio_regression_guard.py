@@ -1,5 +1,11 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api.deps import get_db
 
 
 def test_audio_regression_cases_load():
@@ -48,3 +54,28 @@ def test_audio_job_artifact_contract_shape(client):
         assert body["output_url"].startswith("/artifacts/audio/"), (
             f"output_url has wrong prefix: {body['output_url']}"
         )
+
+
+def test_artifact_static_route_serves_file(db_session, tmp_path, monkeypatch):
+    """GET /artifacts/... must return HTTP 200 for an existing artifact file."""
+    audio_dir = tmp_path / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    artifact = audio_dir / "sample.preview.wav"
+    artifact.write_bytes(b"RIFF\x00\x00\x00\x00WAVEtest")
+
+    monkeypatch.setattr("app.main.ARTIFACT_ROOT", str(tmp_path))
+
+    from app.main import create_app
+
+    with (
+        patch("app.workers.audio_tasks.process_tts_job.delay"),
+        patch("app.workers.audio_tasks.process_batch_job.delay"),
+        patch("app.workers.audio_tasks.process_conversation_job.delay"),
+    ):
+        application = create_app()
+        application.dependency_overrides[get_db] = lambda: db_session
+        with TestClient(application) as c:
+            res = c.get("/artifacts/audio/sample.preview.wav")
+
+    assert res.status_code == 200

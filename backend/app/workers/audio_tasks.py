@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from uuid import UUID
 
 from app.db.session import SessionLocal
 from app.models.audio_job import AudioJob
@@ -14,7 +15,8 @@ logger = logging.getLogger(__name__)
 def _update_job(job_id: str, **kwargs) -> None:
     db = SessionLocal()
     try:
-        job = db.query(AudioJob).filter(AudioJob.id == job_id).one_or_none()
+        job_uuid = UUID(job_id)
+        job = db.query(AudioJob).filter(AudioJob.id == job_uuid).one_or_none()
         if job is None:
             logger.warning("Job %s not found in DB", job_id)
             return
