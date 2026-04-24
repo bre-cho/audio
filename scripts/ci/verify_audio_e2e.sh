@@ -66,9 +66,11 @@ NARRATION_JOB_ID=$(printf '%s' "$narration_resp" | json_get id)
 [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]] && log "OK: narration job created $NARRATION_JOB_ID" || log "WARN: narration did not return job id"
 
 if [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
+  status=""
   for _ in {1..40}; do
     sleep 5
     job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$NARRATION_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
+    printf '%s' "$job_resp" > /tmp/audio_job_status.json
     status=$(printf '%s' "$job_resp" | json_get status)
     log "poll status=$status"
     if [[ "$status" == "succeeded" || "$status" == "completed" ]]; then
@@ -80,6 +82,19 @@ if [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
       break
     fi
   done
+  if [[ "${status:-}" != "succeeded" && "${status:-}" != "completed" ]]; then
+    log "last response:"
+    cat /tmp/audio_job_status.json >> "$REPORT_FILE" || true
+    fail "narration job did not finish within timeout, last status=${status:-unknown}"
+  else
+    preview_url=$(printf '%s' "$(cat /tmp/audio_job_status.json)" | json_get preview_url)
+    output_url=$(printf '%s' "$(cat /tmp/audio_job_status.json)" | json_get output_url)
+    if [[ -z "$preview_url" && -z "$output_url" ]]; then
+      fail "job succeeded but no preview_url/output_url found"
+    else
+      log "OK: output_url=$output_url preview_url=$preview_url"
+    fi
+  fi
 fi
 
 $DOCKER_COMPOSE_BIN logs --tail=200 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true

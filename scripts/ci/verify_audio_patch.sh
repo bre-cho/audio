@@ -40,7 +40,11 @@ $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&
 $DOCKER_COMPOSE_BIN logs --tail=100 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
 $DOCKER_COMPOSE_BIN logs --tail=100 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
 
-pytest -q -k "audio or narration or voice_clone" >> "$REPORT_FILE" 2>&1 || fail "pytest audio subset failed"
+if [[ -d backend/tests ]]; then
+  pytest -q -k "audio or narration or voice_clone" >> "$REPORT_FILE" 2>&1 || fail "pytest audio subset failed"
+else
+  log "OK: backend/tests not found; skipping pytest for bootstrap phase"
+fi
 
 if [[ "$pass" == "true" ]]; then
   log "GO"

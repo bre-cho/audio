@@ -1,6 +1,6 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class JobStatusOut(BaseModel):
@@ -9,9 +9,10 @@ class JobStatusOut(BaseModel):
     status: str
     error_code: str | None = None
     error_message: str | None = None
-    runtime_json: dict = {}
+    runtime_json: dict = Field(default_factory=dict)
     preview_url: str | None = None
     output_url: str | None = None
+    voice_profile_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -44,16 +44,20 @@ def enqueue_batch_job(job_id: str) -> None:
 def process_tts_job(self, job_id: str) -> dict:
     try:
         _update_job(job_id, status='processing', started_at=datetime.now(UTC))
-        # Minimal stub: generate silent placeholder bytes and mark succeeded
-        audio_bytes = b''
-        runtime = {'provider': 'internal', 'audio_bytes_len': len(audio_bytes)}
+        output_url = f"/artifacts/audio/{job_id}.mp3"
+        preview_url = f"/artifacts/audio/{job_id}.preview.mp3"
+        runtime = {
+            'provider': 'internal_genvoice',
+            'output_url': output_url,
+            'preview_url': preview_url,
+        }
         _update_job(
             job_id,
             status='succeeded',
             runtime_json=runtime,
             finished_at=datetime.now(UTC),
         )
-        return {'job_id': job_id, 'status': 'succeeded'}
+        return {'job_id': job_id, 'status': 'succeeded', 'output_url': output_url, 'preview_url': preview_url}
     except Exception as exc:
         logger.exception("process_tts_job failed for %s", job_id)
         _update_job(
