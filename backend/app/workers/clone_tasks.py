@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from uuid import UUID
 
 from app.db.session import SessionLocal
 from app.models.audio_job import AudioJob
+from app.services.audio_artifact_service import write_clone_preview_artifact
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -13,7 +15,8 @@ logger = logging.getLogger(__name__)
 def _update_job(job_id: str, **kwargs) -> None:
     db = SessionLocal()
     try:
-        job = db.query(AudioJob).filter(AudioJob.id == job_id).one_or_none()
+        job_uuid = UUID(job_id)
+        job = db.query(AudioJob).filter(AudioJob.id == job_uuid).one_or_none()
         if job is None:
             logger.warning("Job %s not found in DB", job_id)
             return
@@ -69,7 +72,7 @@ def process_clone_job(self, job_id: str) -> dict:
 def process_clone_preview_job(self, job_id: str) -> dict:
     try:
         _update_job(job_id, status='processing', started_at=datetime.now(UTC))
-        preview_url = f"/artifacts/audio/{job_id}.clone_preview.mp3"
+        preview_url = write_clone_preview_artifact(job_id)
         runtime = {
             'provider': 'internal_genvoice',
             'preview_url': preview_url,

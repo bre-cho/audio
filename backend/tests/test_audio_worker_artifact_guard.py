@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.repositories.job_repo import JobRepository
 from app.workers.audio_tasks import process_tts_job
+from app.workers.clone_tasks import process_clone_preview_job
 
 
 def test_audio_worker_creates_artifacts(db_session, tmp_path, monkeypatch):
@@ -30,3 +31,29 @@ def test_audio_worker_creates_artifacts(db_session, tmp_path, monkeypatch):
 
     assert Path(tmp_path / "audio" / f"{job.id}.preview.wav").exists()
     assert Path(tmp_path / "audio" / f"{job.id}.wav").exists()
+
+
+def test_clone_preview_worker_creates_artifact(db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path))
+    monkeypatch.setenv("AUDIO_ARTIFACT_DIR", str(tmp_path / "audio"))
+
+    import app.services.audio_artifact_service as svc
+    svc.AUDIO_ARTIFACT_DIR = str(tmp_path / "audio")
+
+    repo = JobRepository(db_session)
+    job = repo.create(
+        user_id="00000000-0000-0000-0000-000000000001",
+        job_type="clone_preview",
+        request_json={"voice": "default"},
+    )
+
+    result = process_clone_preview_job.run(str(job.id))
+
+    db_session.expire_all()
+    updated = repo.get(job.id)
+
+    assert result["status"] == "succeeded"
+    assert updated.status == "succeeded"
+    assert result["preview_url"] == f"/artifacts/audio/{job.id}.clone_preview.wav"
+
+    assert Path(tmp_path / "audio" / f"{job.id}.clone_preview.wav").exists()
