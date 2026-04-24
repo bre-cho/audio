@@ -90,10 +90,30 @@ if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
   else
     preview_url=$(printf '%s' "$(cat /tmp/audio_preview_job_status.json)" | json_get preview_url)
     output_url=$(printf '%s' "$(cat /tmp/audio_preview_job_status.json)" | json_get output_url)
-    if [[ -z "$preview_url" && -z "$output_url" ]]; then
-      fail "preview job succeeded but no preview_url/output_url found"
+    log "OK: output_url=$output_url preview_url=$preview_url"
+
+    if [[ -n "$preview_url" ]]; then
+      curl -fsSI "$BASE_URL$preview_url" >> "$REPORT_FILE" 2>&1 \
+        && log "OK: preview artifact reachable: $preview_url" \
+        || fail "preview artifact not reachable: $preview_url"
+      preview_content_type=$(curl -fsSI "$BASE_URL$preview_url" | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' | tr -d '\r')
+      echo "$preview_content_type" | grep -q "audio" \
+        && log "OK: preview content-type is audio: $preview_content_type" \
+        || fail "preview artifact content-type is not audio: $preview_content_type"
     else
-      log "OK: output_url=$output_url preview_url=$preview_url"
+      fail "preview_url missing"
+    fi
+
+    if [[ -n "$output_url" ]]; then
+      curl -fsSI "$BASE_URL$output_url" >> "$REPORT_FILE" 2>&1 \
+        && log "OK: output artifact reachable: $output_url" \
+        || fail "output artifact not reachable: $output_url"
+      output_content_type=$(curl -fsSI "$BASE_URL$output_url" | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' | tr -d '\r')
+      echo "$output_content_type" | grep -q "audio" \
+        && log "OK: output content-type is audio: $output_content_type" \
+        || fail "output artifact content-type is not audio: $output_content_type"
+    else
+      fail "output_url missing"
     fi
   fi
 fi

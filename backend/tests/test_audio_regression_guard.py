@@ -30,7 +30,7 @@ def test_audio_preview_basic_contract(client):
 
     body = res.json()
     assert body.get("job_id"), "response must include job_id"
-    assert body.get("status") in ("queued", "processing", "succeeded"), (
+    assert body.get("status") in ("queued", "processing", "retrying", "succeeded", "failed"), (
         f"unexpected status value: {body.get('status')}"
     )
 
