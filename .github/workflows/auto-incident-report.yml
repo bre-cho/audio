@@ -77,6 +77,20 @@ jobs:
             --classification .incident_classification.json \
             --output incident_report.md
 
+      - name: Read escalation mode
+        id: escalation
+        run: |
+          ESC_MODE=$(python - <<'PY'
+          import json, sys
+          try:
+              d = json.load(open(".incident_classification.json"))
+              print(d.get("escalation", {}).get("mode", "channel_only"))
+          except Exception:
+              print("channel_only")
+          PY
+          )
+          echo "ESC_MODE=${ESC_MODE}" >> "$GITHUB_ENV"
+
       - name: Collect root cause snapshot
         run: bash scripts/incident/collect_root_cause_snapshot.sh
 
@@ -95,11 +109,36 @@ jobs:
             incident_report.md
 
       - name: Build Slack payload
-        if: always()
+        if: always() && env.ESC_MODE != 'suppress'
         run: python scripts/incident/build_incident_slack_payload.py > .incident_report/slack_payload.json
 
       - name: Slack notify
-        if: always() && env.SLACK_WEBHOOK_URL != ''
+        if: always() && env.SLACK_WEBHOOK_URL != '' && env.ESC_MODE != 'suppress'
         uses: slackapi/slack-github-action@v2.1.1
         with:
           payload-file-path: .incident_report/slack_payload.json
+
+      - name: Trigger oncall pager
+        if: always() && env.ESC_MODE == 'page_oncall' && env.PAGER_WEBHOOK_URL != ''
+        env:
+          PAGER_WEBHOOK_URL: ${{ secrets.PAGER_WEBHOOK_URL }}
+        run: |
+          INCIDENT_SUMMARY=$(python - <<'PY'
+          import json
+          try:
+              d = json.load(open(".incident_classification.json"))
+              esc = d.get("escalation", {})
+              print(d.get("summary", ""), esc.get("severity", "P3"), sep="\n")
+          except Exception:
+              print("unknown incident\nP3")
+          PY
+          )
+          ESC_SEV=$(echo "$INCIDENT_SUMMARY" | tail -1)
+          INCIDENT_SUMMARY=$(echo "$INCIDENT_SUMMARY" | head -1)
+          curl -fsS -X POST "$PAGER_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            --data "{\"severity\":\"${ESC_SEV}\",\"summary\":\"${INCIDENT_SUMMARY}\"}"
+
+      - name: Suppress low-confidence incident
+        if: always() && env.ESC_MODE == 'suppress'
+        run: echo "Low-confidence incident suppressed; artifact retained for review."

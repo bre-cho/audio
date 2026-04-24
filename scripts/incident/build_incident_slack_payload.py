@@ -23,6 +23,19 @@ def main() -> int:
     secondary_cause = classification.get('secondary_cause') or 'none'
     ai_summary = classification.get('summary', '')
 
+    esc = classification.get('escalation', {})
+    esc_mode = esc.get('mode', 'channel_only')
+    esc_sev = esc.get('severity', 'P3')
+    esc_team = esc.get('mention_team', 'oncall')
+
+    primary_act = classification.get('recommended_actions', {}).get('primary', {})
+    first_action = (primary_act.get('commands') or ['inspect logs'])[0]
+    top_owner = (primary_act.get('owners') or ['oncall'])[0]
+
+    link_primary = classification.get('linked_resources', {}).get('primary', {})
+    runbook = link_primary.get('runbook', '')
+    oncall_channel = link_primary.get('chat', {}).get('slack', '')
+
     payload = {
         'text': f'🚨 Audio incident: {ai_summary or "Auto incident report generated"}',
         'blocks': [
@@ -44,6 +57,16 @@ def main() -> int:
                     {'type': 'mrkdwn', 'text': f"*Secondary cause:*\n`{secondary_cause}`"},
                 ],
             },
+            {
+                'type': 'section',
+                'fields': [
+                    {'type': 'mrkdwn', 'text': f"*Escalation:*\n`{esc_mode}` / `{esc_sev}`"},
+                    {'type': 'mrkdwn', 'text': f"*Ping team:*\n`{esc_team}` / `{top_owner}`"},
+                    {'type': 'mrkdwn', 'text': f"*First action:*\n{first_action}"},
+                    {'type': 'mrkdwn', 'text': f"*Oncall channel:*\n{oncall_channel}"},
+                ],
+            },
+            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': f"*Runbook:* {runbook}"}},
             {'type': 'section', 'text': {'type': 'mrkdwn', 'text': f"<{run_url}|Open workflow run>"}},
             {'type': 'section', 'text': {'type': 'mrkdwn', 'text': f"*Incident summary:*\n```{summary}```"}},
         ],
