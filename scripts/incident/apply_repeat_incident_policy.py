@@ -152,6 +152,17 @@ def main() -> None:
         "cluster_count_30m": cluster_count,
         "last_seen_age_sec": last_seen_age_sec,
     }
+
+    # Restore persisted issue + slack mapping so sync scripts can reuse them
+    existing_parent = next(
+        (p for p in mem["parents"] if p.get("parent_incident_key") == parent_key),
+        None,
+    )
+    if existing_parent:
+        for field in ("issue_number", "issue_url", "slack_thread_ts", "slack_channel_id"):
+            if existing_parent.get(field) is not None:
+                parent_state[field] = existing_parent[field]
+
     data["parent_incident"] = parent_state
 
     is_child = cluster_count > 1

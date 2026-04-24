@@ -84,6 +84,15 @@ def main():
     parent_cluster_count = parent.get("cluster_count_30m", 1)
     last_seen_age = parent.get("last_seen_age_sec", 0)
 
+    # v11 — GitHub Issue sync
+    issue_no = parent.get("issue_number")
+    issue_url = parent.get("issue_url", "")
+    child_action = child.get("action", "none")
+
+    # v12 — Slack thread sync
+    slack_channel = parent.get("slack_channel_id", "")
+    slack_thread_ts = parent.get("slack_thread_ts", "")
+
     md = f"""# Auto Incident Report
 
 - Workflow: `{data.get('workflow_name', '')}`
@@ -105,7 +114,11 @@ def main():
 - Cluster count (30m): `{storm_count}`
 - Parent incident: `{parent_key}`
 - Parent status: `{parent_status_val}`
-- Child action: `{child.get("action", "none")}`
+- Child action: `{child_action}`
+- Parent issue: `#{issue_no}`
+- Parent issue URL: {issue_url}
+- Slack channel: `{slack_channel}`
+- Slack thread_ts: `{slack_thread_ts}`
 
 ## Summary
 {data.get('summary', '')}
@@ -127,6 +140,14 @@ def main():
 - resolved → quiet long enough to close cluster
 - Child incidents (30m): `{parent_cluster_count}`
 - Last seen age (sec): `{last_seen_age}`
+
+## Parent Sync
+- New clustered incidents should update the same parent issue
+- Do not open a new issue when `parent_incident_key` already exists
+
+## Slack Thread Sync
+- First parent incident opens root Slack message
+- Child incidents reply into the same thread
 
 ## Ranked Causes
 {ranked_lines}

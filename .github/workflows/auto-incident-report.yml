@@ -91,6 +91,48 @@ jobs:
             --classification .incident_classification.json \
             --memory .incident_memory.json
 
+      - name: Sync parent incident issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/incident/sync_parent_issue.py \
+            --repo "${{ github.repository }}" \
+            --classification .incident_classification.json
+
+      - name: Sync Slack parent thread
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        run: |
+          python scripts/incident/sync_parent_slack_thread.py \
+            --classification .incident_classification.json
+
+      - name: Persist sync state to memory
+        run: |
+          python - <<'PY'
+          import json, time
+          from pathlib import Path
+
+          cpath = Path(".incident_classification.json")
+          mpath = Path(".incident_memory.json")
+          data = json.loads(cpath.read_text(encoding="utf-8"))
+          mem = json.loads(mpath.read_text(encoding="utf-8")) if mpath.exists() else {}
+          mem.setdefault("parents", [])
+
+          parent = data.get("parent_incident", {})
+          parent_key = parent.get("parent_incident_key", "")
+          now = int(time.time())
+          WINDOW_SEC = 30 * 60
+
+          mem["parents"] = [
+              p for p in mem["parents"]
+              if now - p.get("updated_ts", now) <= WINDOW_SEC
+              and p.get("parent_incident_key") != parent_key
+          ]
+          mem["parents"].append({**parent, "updated_ts": now})
+          mpath.write_text(json.dumps(mem, indent=2), encoding="utf-8")
+          PY
+
       - name: Read escalation state after override
         id: escalation
         run: |
@@ -108,6 +150,8 @@ jobs:
               print(f'PARENT_STATUS={parent.get("status", "opened")}')
               print(f'PARENT_KEY={parent.get("parent_incident_key", "")}')
               print(f'CHILD_ACTION={child.get("action", "none")}')
+              print(f'PARENT_ISSUE_URL={parent.get("issue_url", "")}')
+              print(f'SLACK_THREAD_TS={parent.get("slack_thread_ts", "")}')
           except Exception:
               print("ESC_MODE=channel_only")
               print("STORM_ACTIVE=false")
@@ -115,6 +159,8 @@ jobs:
               print("PARENT_STATUS=opened")
               print("PARENT_KEY=")
               print("CHILD_ACTION=none")
+              print("PARENT_ISSUE_URL=")
+              print("SLACK_THREAD_TS=")
           PY
 
       - name: Collect root cause snapshot
@@ -173,6 +219,10 @@ jobs:
       - name: Post parent update note
         if: always() && env.CHILD_ACTION == 'update_parent'
         run: echo "update existing parent incident ${{ env.PARENT_KEY }} (status=${{ env.PARENT_STATUS }}) instead of opening new one"
+
+      - name: Print sync summary
+        if: always()
+        run: echo "issue+slack synced | action=${{ env.CHILD_ACTION }} | issue=${{ env.PARENT_ISSUE_URL }} | thread=${{ env.SLACK_THREAD_TS }}"
 
       - name: Suppress low-confidence incident
         if: always() && env.ESC_MODE == 'suppress'
