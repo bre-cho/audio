@@ -1,0 +1,150 @@
+name: audio-chaos-ci
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: "Comma-separated chaos scenarios"
+        required: false
+        default: "worker_kill,provider_fail"
+      keep_broken_state:
+        description: "Keep broken state after test"
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: audio-chaos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+  ALERTMANAGER_URL: ${{ secrets.STAGING_ALERTMANAGER_URL }}
+  API_SERVICE: api
+  WORKER_SERVICE: worker
+  REDIS_SERVICE: redis
+  DOCKER_COMPOSE_BIN: docker compose
+  AUTH_ENABLED: ${{ secrets.AUDIO_TEST_AUTH_ENABLED || '0' }}
+  AUTH_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+  AUTH_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+  SAMPLE_PATH: ${{ secrets.CHAOS_SAMPLE_PATH || './test_sample.mp3' }}
+  KEEP_BROKEN_STATE: ${{ github.event.inputs.keep_broken_state || '0' }}
+  SCENARIOS: ${{ github.event.inputs.scenarios || 'worker_kill,provider_fail' }}
+
+jobs:
+  audio-chaos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Prepare report dirs
+        run: mkdir -p .audio_chaos_report .alertmanager_probe
+
+      - name: Check docker
+        run: docker --version
+
+      - name: Start staging-side probes only
+        run: |
+          chmod +x scripts/chaos/audio_chaos_test.sh || true
+          test -f scripts/chaos/audio_chaos_test.sh
+
+      - name: Run audio chaos test
+        id: chaos
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/chaos/audio_chaos_test.sh | tee .audio_chaos_report/stdout.log
+
+      - name: Verify alertmanager fired expected alerts
+        id: alertcheck
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ALERTS_JSON=".alertmanager_probe/alerts.json"
+          curl -fsSL "${ALERTMANAGER_URL}/api/v2/alerts" -o "${ALERTS_JSON}"
+
+          python - <<'PY'
+          import json, os, sys, pathlib
+          p = pathlib.Path(".alertmanager_probe/alerts.json")
+          alerts = json.loads(p.read_text(encoding="utf-8"))
+          expected = {
+              "worker_kill": ["AudioNarrationStuckJobs", "AudioHealthEndpointDown"],
+              "provider_fail": ["AudioNarrationProviderFailureRateHigh", "AudioPreviewProviderFailureRateHigh"],
+              "ffmpeg_delay": ["AudioMergeHighLatency"],
+              "queue_backlog": ["AudioNarrationStuckJobs"],
+          }
+          scenarios = [s.strip() for s in os.environ.get("SCENARIOS","").split(",") if s.strip()]
+          active = {a["labels"].get("alertname") for a in alerts if a.get("status", {}).get("state") == "active"}
+          missing = []
+          for scenario in scenarios:
+              for rule in expected.get(scenario, []):
+                  if rule not in active:
+                      missing.append((scenario, rule))
+          report = pathlib.Path(".audio_chaos_report/alertcheck.txt")
+          lines = [f"SCENARIOS={scenarios}", f"ACTIVE_ALERTS={sorted(active)}"]
+          if missing:
+              lines.append("MISSING_EXPECTED_ALERTS=" + repr(missing))
+              report.write_text("\n".join(lines), encoding="utf-8")
+              print("\n".join(lines))
+              sys.exit(2)
+          lines.append("RESULT=PASS")
+          report.write_text("\n".join(lines), encoding="utf-8")
+          print("\n".join(lines))
+          PY
+
+      - name: Upload chaos artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: audio-chaos-artifacts
+          path: |
+            .audio_chaos_report/
+            .alertmanager_probe/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Build Slack payload on failure
+        if: failure()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          report = pathlib.Path(".audio_chaos_report/alertcheck.txt")
+          report_text = report.read_text(encoding="utf-8") if report.exists() else "alertcheck report missing"
+          payload = {
+              "text": ":rotating_light: Audio chaos CI failed",
+              "blocks": [
+                  {"type": "header", "text": {"type": "plain_text", "text": "Audio chaos CI failed"}},
+                  {"type": "section", "fields": [
+                      {"type": "mrkdwn", "text": f"*Repo:*\n{os.environ.get('GITHUB_REPOSITORY','')}"},
+                      {"type": "mrkdwn", "text": f"*Run ID:*\n{os.environ.get('GITHUB_RUN_ID','')}"},
+                      {"type": "mrkdwn", "text": f"*Scenarios:*\n{os.environ.get('SCENARIOS','')}"},
+                      {"type": "mrkdwn", "text": f"*Workflow:*\n{os.environ.get('GITHUB_WORKFLOW','')}"},
+                  ]},
+                  {"type": "section", "text": {"type": "mrkdwn", "text": "*Alert verification report:*\n```" + report_text[:2800] + "```"}},
+                  {"type": "section", "text": {"type": "mrkdwn", "text": f"<{os.environ.get('GITHUB_SERVER_URL','https://github.com')}/{os.environ.get('GITHUB_REPOSITORY','')}/actions/runs/{os.environ.get('GITHUB_RUN_ID','')}|Open workflow run>"}}
+              ]
+          }
+          pathlib.Path(".audio_chaos_report/slack_payload.json").write_text(json.dumps(payload), encoding="utf-8")
+          PY
+
+      - name: Send Slack alert on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v3
+        with:
+          payload-file-path: .audio_chaos_report/slack_payload.json
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
