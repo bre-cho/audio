@@ -1,0 +1,78 @@
+name: auto-incident-report
+
+on:
+  workflow_dispatch:
+    inputs:
+      incident_context:
+        description: "Free-text incident context"
+        required: false
+        default: "manual-trigger"
+      alertname:
+        description: "Alert name if known"
+        required: false
+        default: ""
+      severity:
+        description: "Severity"
+        required: false
+        default: "warning"
+  repository_dispatch:
+    types: [audio_incident_report]
+  workflow_run:
+    workflows: ["audio-chaos-ci", "audio-ci-e2e", "audio-canary-deploy"]
+    types: [completed]
+
+concurrency:
+  group: auto-incident-report-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  incident-report:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'repository_dispatch' ||
+      github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+      ALERTMANAGER_URL: ${{ secrets.ALERTMANAGER_URL }}
+      PROMETHEUS_URL: ${{ secrets.PROMETHEUS_URL }}
+      DOCKER_COMPOSE_BIN: docker compose
+      API_SERVICE: api
+      WORKER_SERVICE: worker
+      FRONTEND_SERVICE: frontend
+      EDGE_RELAY_SERVICE: edge-relay
+      REDIS_SERVICE: redis
+      POSTGRES_SERVICE: postgres
+      REPORT_DIR: .incident_report
+      INCIDENT_CONTEXT: ${{ github.event.inputs.incident_context || github.event.client_payload.incident_context || github.event.workflow_run.name || 'workflow-failure' }}
+      ALERT_NAME: ${{ github.event.inputs.alertname || github.event.client_payload.alertname || '' }}
+      ALERT_SEVERITY: ${{ github.event.inputs.severity || github.event.client_payload.severity || 'warning' }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare incident report directory
+        run: mkdir -p "$REPORT_DIR"
+
+      - name: Collect root cause snapshot
+        run: bash scripts/incident/collect_root_cause_snapshot.sh
+
+      - name: Generate markdown incident report
+        run: bash scripts/incident/generate_incident_report.sh
+
+      - name: Upload incident artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-incident-report
+          path: .incident_report/
+
+      - name: Build Slack payload
+        if: always()
+        run: python scripts/incident/build_incident_slack_payload.py > .incident_report/slack_payload.json
+
+      - name: Slack notify
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          payload-file-path: .incident_report/slack_payload.json
