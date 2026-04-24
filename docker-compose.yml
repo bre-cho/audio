@@ -64,8 +64,11 @@ services:
       S3_ENDPOINT_URL: http://minio:9000
       S3_BUCKET: audio-assets
       BACKEND_SCHEMA_BOOTSTRAP: metadata-create-all
+      ARTIFACT_ROOT: /artifacts
     ports:
       - "8000:8000"
+    volumes:
+      - ./artifacts:/artifacts
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval: 10s
@@ -86,6 +89,9 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/audio_ai
       REDIS_URL: redis://redis:6379/0
       BACKEND_SCHEMA_BOOTSTRAP: metadata-create-all
+      ARTIFACT_ROOT: /artifacts
+    volumes:
+      - ./artifacts:/artifacts
     command: celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q default,audio
 
   beat:

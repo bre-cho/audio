@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from app.db.session import SessionLocal
 from app.models.audio_job import AudioJob
+from app.services.audio_artifact_service import write_audio_artifacts
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -44,20 +45,16 @@ def enqueue_batch_job(job_id: str) -> None:
 def process_tts_job(self, job_id: str) -> dict:
     try:
         _update_job(job_id, status='processing', started_at=datetime.now(UTC))
-        output_url = f"/artifacts/audio/{job_id}.mp3"
-        preview_url = f"/artifacts/audio/{job_id}.preview.mp3"
-        runtime = {
-            'provider': 'internal_genvoice',
-            'output_url': output_url,
-            'preview_url': preview_url,
-        }
+        urls = write_audio_artifacts(job_id)
         _update_job(
             job_id,
             status='succeeded',
-            runtime_json=runtime,
+            preview_url=urls["preview_url"],
+            output_url=urls["output_url"],
+            runtime_json={'provider': 'internal_genvoice', **urls},
             finished_at=datetime.now(UTC),
         )
-        return {'job_id': job_id, 'status': 'succeeded', 'output_url': output_url, 'preview_url': preview_url}
+        return {'job_id': job_id, 'status': 'succeeded', **urls}
     except Exception as exc:
         logger.exception("process_tts_job failed for %s", job_id)
         _update_job(

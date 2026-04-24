@@ -1,6 +1,6 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class JobStatusOut(BaseModel):
@@ -17,3 +17,8 @@ class JobStatusOut(BaseModel):
     updated_at: datetime
 
     model_config = {'from_attributes': True}
+
+    @computed_field
+    @property
+    def job_id(self) -> UUID:
+        return self.id
