@@ -135,9 +135,10 @@ def main() -> None:
     sev = data.get("escalation", {}).get("severity", "P3").lower()
     labels = ["incident", "auto-incident", f"severity:{sev}"]
 
-    # ── find existing issue (with one race-condition retry) ─────────────────
+    # ── find existing issue (with a brief back-off retry for race conditions) ──
     issue = find_issue(args.repo, token, parent_key)
     if not issue:
+        time.sleep(RETRY_SLEEP_SEC)
         issue = find_issue(args.repo, token, parent_key)
 
     # ── hydrate classification from authoritative INCIDENT_MAP marker ────────
@@ -221,6 +222,9 @@ def main() -> None:
             parent["issue_mapping_version"] = desired_imap["issue_mapping_version"]
             break
         else:
+            # Exhausted retries — record lock failure in classification so the
+            # caller can detect and surface the inconsistency.
+            parent["marker_update_failed"] = True
             print(
                 f"Warning: could not acquire optimistic lock after {MAX_RETRIES} retries;"
                 " skipping marker update"

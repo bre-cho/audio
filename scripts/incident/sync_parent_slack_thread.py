@@ -88,11 +88,13 @@ def main() -> None:
         )
         child["action"] = "reuse_issue_mapped_thread"
     elif parent.get("issue_url"):
-        # Issue exists but thread_ts not yet in mapping — wait for lock refresh
+        # Issue exists but thread_ts not yet in mapping — wait for lock refresh.
+        # Exit 0 so the workflow step succeeds; the next run will pick up the mapping.
         child["action"] = "await_issue_lock_refresh"
         data["child_incident"] = child
         cpath.write_text(json.dumps(data, indent=2), encoding="utf-8")
         print(json.dumps({"thread_ts": None, "action": "await_issue_lock_refresh"}, indent=2))
+        print("Info: issue exists but slack_thread_ts not yet mapped; skipping Slack post.")
         raise SystemExit(0)
     else:
         # No issue yet — open root Slack message for this parent

@@ -107,7 +107,7 @@ jobs:
           python scripts/incident/sync_parent_slack_thread.py \
             --classification .incident_classification.json
 
-      - name: Sync parent incident issue mapping back
+      - name: Write Slack thread mapping to issue (pass 2)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
