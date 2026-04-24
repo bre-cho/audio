@@ -24,6 +24,10 @@ class JobService:
         job = self.repo.get(job_id)
         if not job:
             raise ValueError('Job not found')
+
+        if job.job_type not in {'tts_preview', 'narration'}:
+            raise UnsupportedRetryJobTypeError(f"Unsupported job type for retry: {job.job_type}")
+
         job.status = 'queued'
         job.error_code = None
         job.error_message = None
@@ -35,7 +39,5 @@ class JobService:
             enqueue_tts_job(str(job.id))
         elif job.job_type == 'narration':
             enqueue_batch_job(str(job.id))
-        else:
-            raise UnsupportedRetryJobTypeError(f"Unsupported job type for retry: {job.job_type}")
 
         return JobStatusOut.model_validate(job)

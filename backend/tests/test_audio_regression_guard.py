@@ -1,6 +1,11 @@
 import json
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
+from app.api.deps import get_db
+from app.main import create_app
+
 
 def test_audio_regression_cases_load():
     """Seed file must be loadable and every case must have required keys."""
@@ -48,3 +53,21 @@ def test_audio_job_artifact_contract_shape(client):
         assert body["output_url"].startswith("/artifacts/audio/"), (
             f"output_url has wrong prefix: {body['output_url']}"
         )
+
+
+def test_artifact_static_route_serves_file(db_session, tmp_path, monkeypatch):
+    """GET /artifacts/... must return HTTP 200 for an existing artifact file."""
+    audio_dir = tmp_path / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    artifact = audio_dir / "sample.preview.wav"
+    artifact.write_bytes(b"RIFF\x00\x00\x00\x00WAVEtest")
+
+    monkeypatch.setattr("app.main.ARTIFACT_ROOT", str(tmp_path))
+
+    application = create_app()
+    application.dependency_overrides[get_db] = lambda: db_session
+    with TestClient(application) as c:
+        res = c.get("/artifacts/audio/sample.preview.wav")
+
+    assert res.status_code == 200

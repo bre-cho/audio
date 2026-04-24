@@ -25,8 +25,8 @@ def test_audio_worker_creates_artifacts(db_session, tmp_path, monkeypatch):
 
     assert result["status"] == "succeeded"
     assert updated.status == "succeeded"
-    assert updated.preview_url == f"/artifacts/audio/{job.id}.preview.mp3"
-    assert updated.output_url == f"/artifacts/audio/{job.id}.mp3"
+    assert updated.preview_url == f"/artifacts/audio/{job.id}.preview.wav"
+    assert updated.output_url == f"/artifacts/audio/{job.id}.wav"
 
-    assert Path(tmp_path / "audio" / f"{job.id}.preview.mp3").exists()
-    assert Path(tmp_path / "audio" / f"{job.id}.mp3").exists()
+    assert Path(tmp_path / "audio" / f"{job.id}.preview.wav").exists()
+    assert Path(tmp_path / "audio" / f"{job.id}.wav").exists()
