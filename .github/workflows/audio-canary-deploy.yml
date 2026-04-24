@@ -19,6 +19,7 @@ on:
       - 'backend/app/workers/**audio**'
       - 'backend/app/workers/narration_worker.py'
       - 'backend/app/workers/voice_clone_worker.py'
+      - 'backend/app/workers/clone_tasks.py'
       - 'backend/app/models/voice_*.py'
       - 'backend/app/models/narration_job.py'
       - 'backend/app/models/audio_render_output.py'
