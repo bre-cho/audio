@@ -18,14 +18,14 @@ fail(){ log "FAIL: $*"; pass=false; }
 ok(){ log "OK: $*"; }
 
 python -m compileall backend/app >> "$REPORT_FILE" 2>&1 || fail "compileall failed"
-python - <<'PY' >> "$REPORT_FILE" 2>&1 || exit 7
+PYTHONPATH=backend python - <<'PY' >> "$REPORT_FILE" 2>&1 || exit 7
 import importlib
 mods=[
-  'backend.app.api.audio',
-  'backend.app.services.tts_service',
-  'backend.app.services.voice_clone_service',
-  'backend.app.workers.audio_tasks',
-  'backend.app.workers.clone_tasks',
+  'app.api.audio',
+  'app.services.tts_service',
+  'app.services.voice_clone_service',
+  'app.workers.audio_tasks',
+  'app.workers.clone_tasks',
 ]
 for m in mods:
     importlib.import_module(m)

@@ -15,7 +15,10 @@ on:
   pull_request:
     paths:
       - 'backend/app/api/audio.py'
+      - 'backend/app/api/jobs.py'
+      - 'backend/app/api/voice_clone.py'
       - 'backend/app/services/audio/**'
+      - 'backend/app/services/audio_artifact_service.py'
       - 'backend/app/models/voice_*.py'
       - 'backend/app/models/narration_job.py'
       - 'backend/app/models/audio_render_output.py'
@@ -23,7 +26,10 @@ on:
       - 'backend/app/workers/*audio*'
       - 'backend/app/workers/*narration*'
       - 'backend/app/workers/*voice_clone*'
+      - 'backend/app/workers/audio_tasks.py'
       - 'backend/app/workers/clone_tasks.py'
+      - 'backend/app/main.py'
+      - 'backend/app/core/config.py'
       - 'scripts/ci/verify_audio_*.sh'
       - 'scripts/ci/audio_fail_safe.sh'
       - 'scripts/ci/build_audio_slack_payload.py'
@@ -34,7 +40,10 @@ on:
     branches: [main, master]
     paths:
       - 'backend/app/api/audio.py'
+      - 'backend/app/api/jobs.py'
+      - 'backend/app/api/voice_clone.py'
       - 'backend/app/services/audio/**'
+      - 'backend/app/services/audio_artifact_service.py'
       - 'backend/app/models/voice_*.py'
       - 'backend/app/models/narration_job.py'
       - 'backend/app/models/audio_render_output.py'
@@ -42,7 +51,10 @@ on:
       - 'backend/app/workers/*audio*'
       - 'backend/app/workers/*narration*'
       - 'backend/app/workers/*voice_clone*'
+      - 'backend/app/workers/audio_tasks.py'
       - 'backend/app/workers/clone_tasks.py'
+      - 'backend/app/main.py'
+      - 'backend/app/core/config.py'
       - 'scripts/ci/verify_audio_*.sh'
       - 'scripts/ci/audio_fail_safe.sh'
       - 'scripts/ci/build_audio_slack_payload.py'
