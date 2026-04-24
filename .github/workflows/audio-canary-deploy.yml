@@ -23,6 +23,10 @@ on:
       - 'backend/app/models/voice_*.py'
       - 'backend/app/models/narration_job.py'
       - 'backend/app/models/audio_render_output.py'
+      - 'backend/app/services/audio_artifact_service.py'
+      - 'backend/app/main.py'
+      - 'backend/app/core/config.py'
+      - 'docker-compose.yml'
       - '.github/workflows/audio-canary-deploy.yml'
       - 'scripts/deploy/**'
 
