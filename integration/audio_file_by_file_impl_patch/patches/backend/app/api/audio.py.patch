@@ -1,0 +1,109 @@
+--- a/backend/app/api/audio.py
++++ b/backend/app/api/audio.py
+@@
+ from __future__ import annotations
+ 
+ import tempfile
+ from pathlib import Path
++from uuid import uuid4
+@@
+ from app.services.audio.audio_mix_service import create_audio_render_output, mix_audio_tracks
+ from app.services.audio.audio_mux_service import mux_audio_to_video
+ from app.services.audio.elevenlabs_adapter import ElevenLabsAdapter
+ from app.services.audio.music_selection_service import create_music_asset, generate_music_asset, save_uploaded_music_asset
+ from app.services.audio.narration_service import create_narration_job, run_narration_job
+ from app.services.audio.voice_clone_service import create_voice_profile, save_voice_sample
++from app.services.object_storage import upload_file_to_object_storage
++from app.workers.narration_worker import run_narration_job_task
+@@
+ async def post_voice_profile(payload: VoiceProfileCreateRequest, db: Session = Depends(get_db)):
+@@
+     row = create_voice_profile(
+         db,
+         display_name=payload.display_name,
++        provider=payload.provider,
+         clone_mode=payload.clone_mode,
+         language_code=payload.language_code,
+         provider_voice_id=payload.provider_voice_id,
+@@
+ async def post_voice_sample(
+@@
+ ):
+     with tempfile.TemporaryDirectory() as tmpdir:
+-        temp_path = Path(tmpdir) / file.filename
++        safe_name = Path(file.filename or "sample.bin").name
++        temp_path = Path(tmpdir) / safe_name
+         temp_path.write_bytes(await file.read())
+         row = save_voice_sample(
+             db,
+             voice_profile_id=voice_profile_id,
+             source_path=str(temp_path),
+-            filename=file.filename,
++            filename=safe_name,
+             uploaded_by=uploaded_by,
+             mime_type=file.content_type,
+             remove_background_noise=remove_background_noise,
+@@
+ async def post_audio_preview(payload: AudioPreviewRequest, db: Session = Depends(get_db)):
+@@
+     if profile is None or not profile.provider_voice_id:
+         raise HTTPException(status_code=404, detail="Voice profile with provider_voice_id not found")
+     adapter = ElevenLabsAdapter()
+     audio_bytes = await adapter.synthesize_speech(voice_id=profile.provider_voice_id, text=payload.text)
+-    return {"ok": True, "bytes_length": len(audio_bytes)}
++    with tempfile.TemporaryDirectory() as tmpdir:
++        preview_name = f"preview_{uuid4().hex}.mp3"
++        preview_path = Path(tmpdir) / preview_name
++        preview_path.write_bytes(audio_bytes)
++        storage_key = f"audio/previews/{profile.id}/{preview_name}"
++        public_url = None
++        try:
++            stored = upload_file_to_object_storage(
++                local_path=str(preview_path),
++                key=storage_key,
++                content_type="audio/mpeg",
++            )
++            storage_key = stored.key
++            public_url = stored.public_url
++        except Exception:
++            public_url = None
++
++    return {
++        "ok": True,
++        "bytes_length": len(audio_bytes),
++        "preview_url": public_url,
++        "preview_storage_key": storage_key,
++        "voice_profile_id": profile.id,
++        "provider": profile.provider,
++        "content_type": "audio/mpeg",
++    }
+@@
+ async def post_narration_job(payload: NarrationJobCreateRequest, db: Session = Depends(get_db)):
+     row = create_narration_job(
+         db,
+         voice_profile_id=payload.voice_profile_id,
+@@
+         breath_pacing_preset=payload.breath_pacing_preset,
+         provider=payload.provider,
+     )
+-    row = await run_narration_job(db, row.id)
++    run_narration_job_task.delay(row.id)
++    db.refresh(row)
+     return _narration_job_to_response(db, row)
+@@
+ async def post_music_asset_upload(
+@@
+ ):
+     with tempfile.TemporaryDirectory() as tmpdir:
+-        temp_path = Path(tmpdir) / file.filename
++        safe_name = Path(file.filename or "music.bin").name
++        temp_path = Path(tmpdir) / safe_name
+         temp_path.write_bytes(await file.read())
+         row = save_uploaded_music_asset(
+             db,
+             asset_id=music_asset_id,
+             source_path=str(temp_path),
+-            filename=file.filename,
++            filename=safe_name,
+             content_type=file.content_type,
+         )

@@ -1,0 +1,134 @@
+--- a/backend/app/services/audio/voice_clone_service.py
++++ b/backend/app/services/audio/voice_clone_service.py
+@@
+ from __future__ import annotations
+ 
+ import hashlib
+ import shutil
+ from pathlib import Path
++from uuid import uuid4
+@@
+ from app.core.config import settings
+ from app.models.voice_profile import VoiceProfile
+ from app.models.voice_sample import VoiceSample
+ from app.services.audio.elevenlabs_adapter import ElevenLabsAdapter
+ from app.services.object_storage import upload_file_to_object_storage
++
++
++ALLOWED_AUDIO_MIME_TYPES = {
++    "audio/mpeg",
++    "audio/mp3",
++    "audio/wav",
++    "audio/x-wav",
++    "audio/wave",
++    "audio/mp4",
++    "audio/webm",
++    "audio/ogg",
++}
++MAX_VOICE_SAMPLE_BYTES = 25 * 1024 * 1024
+@@
+ def create_voice_profile(
+     db: Session,
+     *,
+     display_name: str,
++    provider: str = "elevenlabs",
+     clone_mode: str,
+     language_code: str | None,
+     provider_voice_id: str | None,
+@@
+ ) -> VoiceProfile:
+     profile = VoiceProfile(
+         display_name=display_name,
+-        provider="elevenlabs",
++        provider=provider,
+         provider_voice_id=provider_voice_id,
+         clone_mode=clone_mode,
+         consent_status="confirmed" if consent_confirmed else "pending",
+@@
+ def save_voice_sample(
+@@
+ ) -> VoiceSample:
++    if mime_type and mime_type not in ALLOWED_AUDIO_MIME_TYPES:
++        raise ValueError(f"Unsupported audio mime type: {mime_type}")
++
++    source = Path(source_path)
++    if not source.exists():
++        raise ValueError(f"Source file not found: {source_path}")
++    if source.stat().st_size > MAX_VOICE_SAMPLE_BYTES:
++        raise ValueError("Voice sample exceeds maximum allowed size")
++
+     target_dir = Path(settings.audio_upload_dir)
+     target_dir.mkdir(parents=True, exist_ok=True)
+-    target_path = target_dir / filename
++    safe_name = Path(filename).name
++    target_path = target_dir / voice_profile_id / f"{uuid4().hex}_{safe_name}"
++    target_path.parent.mkdir(parents=True, exist_ok=True)
+     shutil.copyfile(source_path, target_path)
+ 
+     raw_bytes = target_path.read_bytes()
+     sha256_hex = hashlib.sha256(raw_bytes).hexdigest()
+-    storage_key = f"audio/voice-samples/{voice_profile_id}/{filename}"
++
++    duplicate = (
++        db.query(VoiceSample)
++        .filter(VoiceSample.voice_profile_id == voice_profile_id, VoiceSample.sha256_hex == sha256_hex)
++        .order_by(VoiceSample.created_at.desc())
++        .first()
++    )
++    if duplicate is not None:
++        try:
++            target_path.unlink(missing_ok=True)
++        except Exception:
++            pass
++        return duplicate
++
++    storage_key = f"audio/voice-samples/{voice_profile_id}/{target_path.name}"
+     stored = None
+     if settings.audio_upload_to_object_storage:
+         try:
+@@
+ 
+     sample = VoiceSample(
+         voice_profile_id=voice_profile_id,
+-        filename=filename,
++        filename=safe_name,
+         local_path=str(target_path),
+         storage_key=stored.key if stored else storage_key,
+         public_url=stored.public_url if stored else None,
+@@
+ async def clone_voice_if_needed(db: Session, profile: VoiceProfile) -> VoiceProfile:
+     if profile.provider_voice_id or profile.clone_mode == "library":
+         return profile
+@@
+     if not sample_paths:
+         return profile
+ 
++    profile.consent_status = "processing"
++    db.commit()
++
+-    adapter = ElevenLabsAdapter()
++    if profile.provider != "elevenlabs":
++        profile.consent_status = "failed"
++        profile.consent_text = (profile.consent_text or "") + "\n[system] Unsupported provider for voice clone attempt."
++        db.commit()
++        db.refresh(profile)
++        return profile
++
++    adapter = ElevenLabsAdapter()
+     result = await adapter.create_ivc_voice(name=profile.display_name, files=sample_paths, remove_background_noise=True)
+     if result.get("ok"):
+         profile.provider_voice_id = result["body"].get("voice_id")
+         profile.consent_status = "confirmed"
+         db.commit()
+         db.refresh(profile)
++        return profile
++
++    profile.consent_status = "failed"
++    body = result.get("body") if isinstance(result, dict) else None
++    message = None
++    if isinstance(body, dict):
++        message = body.get("detail") or body.get("message")
++    profile.consent_text = (profile.consent_text or "") + f"\n[clone-error] {message or 'provider clone failed'}"
++    db.commit()
++    db.refresh(profile)
+     return profile
