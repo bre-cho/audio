@@ -55,6 +55,14 @@ jobs:
       - name: Prepare incident report directory
         run: mkdir -p "$REPORT_DIR"
 
+      - name: Restore incident memory cache
+        uses: actions/cache@v4
+        with:
+          path: .incident_memory.json
+          key: incident-memory-${{ github.repository_id }}
+          restore-keys: |
+            incident-memory-
+
       - name: Collect incident evidence
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -77,19 +85,37 @@ jobs:
             --classification .incident_classification.json \
             --output incident_report.md
 
-      - name: Read escalation mode
+      - name: Apply repeat-incident override
+        run: |
+          python scripts/incident/apply_repeat_incident_policy.py \
+            --classification .incident_classification.json \
+            --memory .incident_memory.json
+
+      - name: Read escalation state after override
         id: escalation
         run: |
-          ESC_MODE=$(python - <<'PY'
+          python - <<'PY' >> "$GITHUB_ENV"
           import json, sys
           try:
               d = json.load(open(".incident_classification.json"))
-              print(d.get("escalation", {}).get("mode", "channel_only"))
+              esc = d.get("escalation", {})
+              storm = d.get("storm_control", {})
+              parent = d.get("parent_incident", {})
+              child = d.get("child_incident", {})
+              print(f'ESC_MODE={esc.get("mode", "channel_only")}')
+              print(f'STORM_ACTIVE={str(storm.get("active", False)).lower()}')
+              print(f'CLUSTER_COUNT={storm.get("cluster_count_30m", 1)}')
+              print(f'PARENT_STATUS={parent.get("status", "opened")}')
+              print(f'PARENT_KEY={parent.get("parent_incident_key", "")}')
+              print(f'CHILD_ACTION={child.get("action", "none")}')
           except Exception:
-              print("channel_only")
+              print("ESC_MODE=channel_only")
+              print("STORM_ACTIVE=false")
+              print("CLUSTER_COUNT=1")
+              print("PARENT_STATUS=opened")
+              print("PARENT_KEY=")
+              print("CHILD_ACTION=none")
           PY
-          )
-          echo "ESC_MODE=${ESC_MODE}" >> "$GITHUB_ENV"
 
       - name: Collect root cause snapshot
         run: bash scripts/incident/collect_root_cause_snapshot.sh
@@ -106,6 +132,7 @@ jobs:
             .incident_report/
             .incident_evidence.json
             .incident_classification.json
+            .incident_memory.json
             incident_report.md
 
       - name: Build Slack payload
@@ -119,7 +146,7 @@ jobs:
           payload-file-path: .incident_report/slack_payload.json
 
       - name: Trigger oncall pager
-        if: always() && env.ESC_MODE == 'page_oncall' && env.PAGER_WEBHOOK_URL != ''
+        if: always() && env.ESC_MODE == 'page_oncall' && env.STORM_ACTIVE != 'true' && env.PAGER_WEBHOOK_URL != ''
         env:
           PAGER_WEBHOOK_URL: ${{ secrets.PAGER_WEBHOOK_URL }}
         run: |
@@ -138,6 +165,14 @@ jobs:
           curl -fsS -X POST "$PAGER_WEBHOOK_URL" \
             -H 'Content-type: application/json' \
             --data "{\"severity\":\"${ESC_SEV}\",\"summary\":\"${INCIDENT_SUMMARY}\"}"
+
+      - name: Post clustered parent incident note
+        if: always() && env.STORM_ACTIVE == 'true' && env.CHILD_ACTION != 'update_parent'
+        run: echo "storm-control active — collapsing repeated incidents into parent cluster ${{ env.PARENT_KEY }}"
+
+      - name: Post parent update note
+        if: always() && env.CHILD_ACTION == 'update_parent'
+        run: echo "update existing parent incident ${{ env.PARENT_KEY }} (status=${{ env.PARENT_STATUS }}) instead of opening new one"
 
       - name: Suppress low-confidence incident
         if: always() && env.ESC_MODE == 'suppress'

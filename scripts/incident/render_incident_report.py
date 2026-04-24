@@ -64,6 +64,26 @@ def main():
     esc_team = esc.get("mention_team", "oncall")
     dedupe_key = data.get("dedupe_key", "")
 
+    # v8 — repeat incident
+    repeat = data.get("repeat_incident", {})
+    repeat_count = repeat.get("repeat_count_30m", 1)
+    repeat_override = repeat.get("override_applied", False)
+
+    # v9 — storm control
+    storm = data.get("storm_control", {})
+    storm_active = storm.get("active", False)
+    storm_count = storm.get("cluster_count_30m", 1)
+    storm_reason = storm.get("reason")
+    cluster_key = data.get("cluster_key", "")
+
+    # v10 — parent incident lifecycle
+    parent = data.get("parent_incident", {})
+    child = data.get("child_incident", {})
+    parent_key = parent.get("parent_incident_key", "")
+    parent_status_val = parent.get("status", "")
+    parent_cluster_count = parent.get("cluster_count_30m", 1)
+    last_seen_age = parent.get("last_seen_age_sec", 0)
+
     md = f"""# Auto Incident Report
 
 - Workflow: `{data.get('workflow_name', '')}`
@@ -78,6 +98,14 @@ def main():
 - Ping first: `{first_owner}`
 - Click first: {click_first}
 - Dedupe key: `{dedupe_key}`
+- Repeat count (30m): `{repeat_count}`
+- Override applied: `{repeat_override}`
+- Cluster key: `{cluster_key}`
+- Storm control: `{storm_active}`
+- Cluster count (30m): `{storm_count}`
+- Parent incident: `{parent_key}`
+- Parent status: `{parent_status_val}`
+- Child action: `{child.get("action", "none")}`
 
 ## Summary
 {data.get('summary', '')}
@@ -86,6 +114,19 @@ def main():
 - If `page_oncall`: ping real oncall now
 - If `channel_only`: post channel only, no pager
 - If `suppress`: keep artifact/report only unless repeated
+
+## Repeat-Incident Policy
+- 1x: channel_only
+- 2x / 30m: force `page_oncall`
+- 3x / 30m: bump severity by 1 level
+
+## Parent Incident Lifecycle
+- opened → first clustered incident
+- updated → more child incidents still arriving
+- stabilized → no fresh child spike, but still inside window
+- resolved → quiet long enough to close cluster
+- Child incidents (30m): `{parent_cluster_count}`
+- Last seen age (sec): `{last_seen_age}`
 
 ## Ranked Causes
 {ranked_lines}
@@ -109,6 +150,9 @@ def main():
 
     if secondary_act:
         md += "\n## Secondary Actions\n" + _fmt_list(secondary_act.get("commands", []))
+
+    if storm_active:
+        md += f"\n## Storm Control\n- Parent incident mode enabled\n- Reason: `{storm_reason}`\n"
 
     md += f"""
 ## Linked Resources (Primary)
