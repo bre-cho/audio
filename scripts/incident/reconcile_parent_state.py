@@ -96,7 +96,8 @@ def verify_slack_thread(token: str, channel: str, thread_ts: str) -> bool:
             {"channel": channel, "ts": thread_ts, "limit": 1},
         )
         return bool(res.get("ok"))
-    except Exception:
+    except Exception as exc:
+        print(f"Warning: Slack thread verification failed for ts={thread_ts}: {exc}")
         return False
 
 
