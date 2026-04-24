@@ -48,8 +48,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Prepare incident report directory
         run: mkdir -p "$REPORT_DIR"
+
+      - name: Collect incident evidence
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/incident/collect_audio_evidence_v3.py \
+            --repo "${{ github.repository }}" \
+            --workflow-name "${{ github.event.workflow_run.name || github.event.inputs.incident_context }}" \
+            --run-id "${{ github.event.workflow_run.id || github.run_id }}" \
+            --output .incident_evidence.json
+
+      - name: Classify audio root cause
+        run: |
+          python scripts/incident/classify_audio_root_cause_v3.py \
+            --evidence .incident_evidence.json \
+            --output .incident_classification.json
+
+      - name: Render incident report
+        run: |
+          python scripts/incident/render_incident_report.py \
+            --classification .incident_classification.json \
+            --output incident_report.md
 
       - name: Collect root cause snapshot
         run: bash scripts/incident/collect_root_cause_snapshot.sh
@@ -61,8 +87,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: auto-incident-report
-          path: .incident_report/
+          name: auto-incident-${{ github.event.workflow_run.id || github.run_id }}
+          path: |
+            .incident_report/
+            .incident_evidence.json
+            .incident_classification.json
+            incident_report.md
 
       - name: Build Slack payload
         if: always()
