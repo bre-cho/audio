@@ -48,8 +48,74 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Prepare incident report directory
         run: mkdir -p "$REPORT_DIR"
+
+      - name: Restore incident memory cache
+        uses: actions/cache@v4
+        with:
+          path: .incident_memory.json
+          key: incident-memory-${{ github.repository_id }}
+          restore-keys: |
+            incident-memory-
+
+      - name: Collect incident evidence
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/incident/collect_audio_evidence_v3.py \
+            --repo "${{ github.repository }}" \
+            --workflow-name "${{ github.event.workflow_run.name || github.event.inputs.incident_context }}" \
+            --run-id "${{ github.event.workflow_run.id || github.run_id }}" \
+            --output .incident_evidence.json
+
+      - name: Classify audio root cause
+        run: |
+          python scripts/incident/classify_audio_root_cause_v3.py \
+            --evidence .incident_evidence.json \
+            --output .incident_classification.json
+
+      - name: Render incident report
+        run: |
+          python scripts/incident/render_incident_report.py \
+            --classification .incident_classification.json \
+            --output incident_report.md
+
+      - name: Apply repeat-incident override
+        run: |
+          python scripts/incident/apply_repeat_incident_policy.py \
+            --classification .incident_classification.json \
+            --memory .incident_memory.json
+
+      - name: Read escalation state after override
+        id: escalation
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import json, sys
+          try:
+              d = json.load(open(".incident_classification.json"))
+              esc = d.get("escalation", {})
+              storm = d.get("storm_control", {})
+              parent = d.get("parent_incident", {})
+              child = d.get("child_incident", {})
+              print(f'ESC_MODE={esc.get("mode", "channel_only")}')
+              print(f'STORM_ACTIVE={str(storm.get("active", False)).lower()}')
+              print(f'CLUSTER_COUNT={storm.get("cluster_count_30m", 1)}')
+              print(f'PARENT_STATUS={parent.get("status", "opened")}')
+              print(f'PARENT_KEY={parent.get("parent_incident_key", "")}')
+              print(f'CHILD_ACTION={child.get("action", "none")}')
+          except Exception:
+              print("ESC_MODE=channel_only")
+              print("STORM_ACTIVE=false")
+              print("CLUSTER_COUNT=1")
+              print("PARENT_STATUS=opened")
+              print("PARENT_KEY=")
+              print("CHILD_ACTION=none")
+          PY
 
       - name: Collect root cause snapshot
         run: bash scripts/incident/collect_root_cause_snapshot.sh
@@ -61,15 +127,53 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: auto-incident-report
-          path: .incident_report/
+          name: auto-incident-${{ github.event.workflow_run.id || github.run_id }}
+          path: |
+            .incident_report/
+            .incident_evidence.json
+            .incident_classification.json
+            .incident_memory.json
+            incident_report.md
 
       - name: Build Slack payload
-        if: always()
+        if: always() && env.ESC_MODE != 'suppress'
         run: python scripts/incident/build_incident_slack_payload.py > .incident_report/slack_payload.json
 
       - name: Slack notify
-        if: always() && env.SLACK_WEBHOOK_URL != ''
+        if: always() && env.SLACK_WEBHOOK_URL != '' && env.ESC_MODE != 'suppress'
         uses: slackapi/slack-github-action@v2.1.1
         with:
           payload-file-path: .incident_report/slack_payload.json
+
+      - name: Trigger oncall pager
+        if: always() && env.ESC_MODE == 'page_oncall' && env.STORM_ACTIVE != 'true' && env.PAGER_WEBHOOK_URL != ''
+        env:
+          PAGER_WEBHOOK_URL: ${{ secrets.PAGER_WEBHOOK_URL }}
+        run: |
+          INCIDENT_SUMMARY=$(python - <<'PY'
+          import json
+          try:
+              d = json.load(open(".incident_classification.json"))
+              esc = d.get("escalation", {})
+              print(d.get("summary", ""), esc.get("severity", "P3"), sep="\n")
+          except Exception:
+              print("unknown incident\nP3")
+          PY
+          )
+          ESC_SEV=$(echo "$INCIDENT_SUMMARY" | tail -1)
+          INCIDENT_SUMMARY=$(echo "$INCIDENT_SUMMARY" | head -1)
+          curl -fsS -X POST "$PAGER_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            --data "{\"severity\":\"${ESC_SEV}\",\"summary\":\"${INCIDENT_SUMMARY}\"}"
+
+      - name: Post clustered parent incident note
+        if: always() && env.STORM_ACTIVE == 'true' && env.CHILD_ACTION != 'update_parent'
+        run: echo "storm-control active — collapsing repeated incidents into parent cluster ${{ env.PARENT_KEY }}"
+
+      - name: Post parent update note
+        if: always() && env.CHILD_ACTION == 'update_parent'
+        run: echo "update existing parent incident ${{ env.PARENT_KEY }} (status=${{ env.PARENT_STATUS }}) instead of opening new one"
+
+      - name: Suppress low-confidence incident
+        if: always() && env.ESC_MODE == 'suppress'
+        run: echo "Low-confidence incident suppressed; artifact retained for review."
