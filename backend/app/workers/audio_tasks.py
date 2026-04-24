@@ -31,6 +31,10 @@ def _update_job(job_id: str, **kwargs) -> None:
         db.close()
 
 
+def _should_fail_task(task) -> bool:
+    return task.request.retries >= task.max_retries
+
+
 def enqueue_tts_job(job_id: str) -> None:
     process_tts_job.delay(job_id)
 
@@ -58,14 +62,22 @@ def process_tts_job(self, job_id: str) -> dict:
         )
         return {'job_id': job_id, 'status': 'succeeded', **urls}
     except Exception as exc:
-        logger.exception("process_tts_job failed for %s", job_id)
-        _update_job(
-            job_id,
-            status='failed',
-            error_code='tts_error',
-            error_message=str(exc),
-            finished_at=datetime.now(UTC),
-        )
+        logger.exception("Audio task failed for %s", job_id)
+        if _should_fail_task(self):
+            _update_job(
+                job_id,
+                status='failed',
+                error_code='audio_task_error',
+                error_message=str(exc),
+                finished_at=datetime.now(UTC),
+            )
+        else:
+            _update_job(
+                job_id,
+                status='retrying',
+                error_code='audio_task_retrying',
+                error_message=str(exc),
+            )
         raise self.retry(exc=exc, countdown=10)
 
 
@@ -82,14 +94,22 @@ def process_conversation_job(self, job_id: str) -> dict:
         )
         return {'job_id': job_id, 'status': 'succeeded'}
     except Exception as exc:
-        logger.exception("process_conversation_job failed for %s", job_id)
-        _update_job(
-            job_id,
-            status='failed',
-            error_code='conversation_error',
-            error_message=str(exc),
-            finished_at=datetime.now(UTC),
-        )
+        logger.exception("Audio task failed for %s", job_id)
+        if _should_fail_task(self):
+            _update_job(
+                job_id,
+                status='failed',
+                error_code='audio_task_error',
+                error_message=str(exc),
+                finished_at=datetime.now(UTC),
+            )
+        else:
+            _update_job(
+                job_id,
+                status='retrying',
+                error_code='audio_task_retrying',
+                error_message=str(exc),
+            )
         raise self.retry(exc=exc, countdown=10)
 
 
@@ -106,12 +126,20 @@ def process_batch_job(self, job_id: str) -> dict:
         )
         return {'job_id': job_id, 'status': 'succeeded'}
     except Exception as exc:
-        logger.exception("process_batch_job failed for %s", job_id)
-        _update_job(
-            job_id,
-            status='failed',
-            error_code='batch_error',
-            error_message=str(exc),
-            finished_at=datetime.now(UTC),
-        )
+        logger.exception("Audio task failed for %s", job_id)
+        if _should_fail_task(self):
+            _update_job(
+                job_id,
+                status='failed',
+                error_code='audio_task_error',
+                error_message=str(exc),
+                finished_at=datetime.now(UTC),
+            )
+        else:
+            _update_job(
+                job_id,
+                status='retrying',
+                error_code='audio_task_retrying',
+                error_message=str(exc),
+            )
         raise self.retry(exc=exc, countdown=10)

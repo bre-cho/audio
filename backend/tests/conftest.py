@@ -45,6 +45,8 @@ def client(db_session):
         patch("app.workers.audio_tasks.process_tts_job.delay"),
         patch("app.workers.audio_tasks.process_batch_job.delay"),
         patch("app.workers.audio_tasks.process_conversation_job.delay"),
+        patch("app.workers.clone_tasks.process_clone_job.delay"),
+        patch("app.workers.clone_tasks.process_clone_preview_job.delay"),
     ):
         with TestClient(application) as c:
             yield c

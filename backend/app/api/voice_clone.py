@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.schemas.job import JobStatusOut
@@ -16,7 +16,10 @@ def upload_clone_sample() -> VoiceCloneUploadResponse:
 
 @router.post('/create', response_model=JobStatusOut)
 def create_clone(payload: VoiceCloneCreateRequest, db: Session = Depends(get_db)) -> JobStatusOut:
-    return VoiceCloneService(db).submit_clone(payload)
+    try:
+        return VoiceCloneService(db).submit_clone(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post('/{voice_id}/preview', response_model=JobStatusOut)
