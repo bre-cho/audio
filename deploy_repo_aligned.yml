@@ -1,0 +1,240 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+      skip_audio_canary:
+        description: Skip audio canary lane
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches: [main, master]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'edge/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/**'
+      - 'scripts/**'
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changed-areas:
+    uses: ./.github/workflows/_changed-areas.yml
+
+  backend-quick:
+    needs: changed-areas
+    if: needs.changed-areas.outputs.backend_changed == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+      - name: Compile backend
+        run: |
+          cd backend
+          python -m compileall app tests
+
+  audio-gate:
+    needs: [changed-areas, backend-quick]
+    if: >-
+      (github.event_name == 'workflow_dispatch' || needs.changed-areas.outputs.backend_changed == 'true')
+      && inputs.skip_audio_canary != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      BACKEND_SCHEMA_BOOTSTRAP: metadata-create-all
+      COMPOSE_DOCKER_CLI_BUILD: 1
+      DOCKER_BUILDKIT: 1
+      PROVIDER_RELAY_SHARED_SECRET: replace-me
+      CI: 'true'
+      AUTH_ENABLED: '1'
+      AUTH_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+      AUTH_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      SAMPLE_PATH: ${{ secrets.TEST_AUDIO_SAMPLE_PATH }}
+      BASE_URL: http://localhost:8000
+      API_SERVICE: api
+      WORKER_SERVICE: worker
+      DOCKER_COMPOSE_BIN: docker compose
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Prepare env files
+        run: |
+          mkdir -p .verify_audio_patch .verify_audio_e2e artifacts/ci/audio-gate
+          cp backend/.env.example backend/.env.dev || true
+          cp frontend/.env.local.example frontend/.env.local || true
+
+      - name: Show docker compose config
+        run: docker compose config
+
+      - name: Build stack with cache
+        uses: docker/bake-action@v5
+        with:
+          files: ./docker-compose.yml
+          load: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+
+      - name: Start services
+        run: docker compose up -d postgres redis minio minio-init api worker beat flower frontend edge-relay
+
+      - name: Wait for healthchecks
+        run: python scripts/ci/wait_for_stack.py 300
+
+      - name: Verify audio patch
+        run: |
+          chmod +x scripts/ci/verify_audio_patch.sh scripts/ci/verify_audio_e2e.sh
+          bash scripts/ci/verify_audio_patch.sh
+
+      - name: Verify audio E2E
+        run: bash scripts/ci/verify_audio_e2e.sh
+
+      - name: Upload audio gate artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-gate
+          path: |
+            .verify_audio_patch/**
+            .verify_audio_e2e/**
+            artifacts/ci/audio-gate/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v
+
+  deploy-canary:
+    needs: [changed-areas, backend-quick, audio-gate]
+    if: >-
+      always()
+      && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      && (inputs.skip_audio_canary != true)
+      && needs.backend-quick.result == 'success'
+      && (needs.audio-gate.result == 'success' || needs.audio-gate.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_URL: ${{ secrets.PROD_BASE_URL }}
+      CANARY_BASE_URL: ${{ secrets.CANARY_BASE_URL }}
+      DEPLOY_COMMAND: ${{ secrets.DEPLOY_COMMAND }}
+      CANARY_DEPLOY_COMMAND: ${{ secrets.CANARY_DEPLOY_COMMAND }}
+      SHIFT_TRAFFIC_COMMAND: ${{ secrets.SHIFT_TRAFFIC_COMMAND }}
+      ROLLBACK_COMMAND: ${{ secrets.ROLLBACK_COMMAND }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      AUTH_ENABLED: '1'
+      AUTH_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+      AUTH_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      SAMPLE_PATH: ${{ secrets.TEST_AUDIO_SAMPLE_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Canary deploy audio
+        id: audio_canary
+        run: |
+          chmod +x scripts/deploy/deploy_guard.sh \
+                   scripts/deploy/canary_deploy.sh \
+                   scripts/deploy/audio_shift_traffic.sh \
+                   scripts/deploy/post_canary_audio_smoke.sh \
+                   scripts/deploy/rollback_canary.sh \
+                   scripts/ci/verify_audio_e2e.sh
+          bash scripts/deploy/deploy_guard.sh
+          bash scripts/deploy/canary_deploy.sh
+
+      - name: Shift traffic to canary
+        run: bash scripts/deploy/audio_shift_traffic.sh
+
+      - name: Post-canary audio smoke
+        run: bash scripts/deploy/post_canary_audio_smoke.sh
+
+      - name: Final promote after canary
+        if: success() && env.DEPLOY_COMMAND != ''
+        run: bash -lc "$DEPLOY_COMMAND"
+
+      - name: Auto rollback on failure
+        if: failure() && steps.audio_canary.outcome == 'success'
+        run: bash scripts/deploy/rollback_canary.sh
+
+      - name: Upload deploy artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-audio-canary
+          path: |
+            .verify_audio_patch/**
+            .verify_audio_e2e/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Slack alert on deploy failure
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          python scripts/ci/build_audio_slack_payload.py > /tmp/audio-slack.json || echo '{"text":"Audio deploy failed. Check GitHub Actions artifacts."}' > /tmp/audio-slack.json
+          curl -sS -X POST -H 'Content-type: application/json' --data @/tmp/audio-slack.json "$SLACK_WEBHOOK_URL"
+
+  deploy-direct:
+    needs: [changed-areas, backend-quick]
+    if: >-
+      always()
+      && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      && inputs.skip_audio_canary == true
+      && needs.backend-quick.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_COMMAND: ${{ secrets.DEPLOY_COMMAND }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Direct deploy
+        run: bash -lc "$DEPLOY_COMMAND"
+      - name: Slack alert on direct deploy failure
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          printf '{"text":"Direct deploy failed for %s (%s)"}' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > /tmp/direct-deploy-slack.json
+          curl -sS -X POST -H 'Content-type: application/json' --data @/tmp/direct-deploy-slack.json "$SLACK_WEBHOOK_URL"

@@ -1,0 +1,163 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  DOCKER_COMPOSE_BIN: "docker compose"
+  API_SERVICE: api
+  WORKER_SERVICE: worker
+  FRONTEND_SERVICE: frontend
+  AUDIO_CI_REPORT_DIR: .verify_audio_e2e
+  AUDIO_PATCH_REPORT_DIR: .verify_audio_patch
+  BASE_URL: ${{ secrets.PROD_BASE_URL }}
+  CANARY_BASE_URL: ${{ secrets.CANARY_BASE_URL }}
+  DEPLOY_COMMAND: ${{ secrets.DEPLOY_COMMAND }}
+  CANARY_DEPLOY_COMMAND: ${{ secrets.CANARY_DEPLOY_COMMAND }}
+  SHIFT_TRAFFIC_COMMAND: ${{ secrets.SHIFT_TRAFFIC_COMMAND }}
+  ROLLBACK_COMMAND: ${{ secrets.ROLLBACK_COMMAND }}
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  AUTH_ENABLED: ${{ secrets.AUDIO_TEST_AUTH_ENABLED || '0' }}
+  AUTH_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+  AUTH_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+  SAMPLE_PATH: ${{ secrets.AUDIO_TEST_SAMPLE_PATH || './test_sample.mp3' }}
+
+jobs:
+  audio-ci-e2e:
+    name: Audio CI E2E Gate
+    if: ${{ !contains(github.event.head_commit.message, '[skip-audio-ci]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Check Docker
+        run: docker --version
+
+      - name: Start stack
+        run: ${{ env.DOCKER_COMPOSE_BIN }} up -d
+
+      - name: Run audio patch verify
+        run: bash scripts/ci/verify_audio_patch.sh
+
+      - name: Run audio E2E verify
+        run: bash scripts/ci/verify_audio_e2e.sh
+
+      - name: Upload audio gate artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-gate-artifacts
+          path: |
+            ${{ env.AUDIO_CI_REPORT_DIR }}/
+            ${{ env.AUDIO_PATCH_REPORT_DIR }}/
+          if-no-files-found: warn
+
+  deploy:
+    name: Deploy with Audio Canary Guard
+    needs: [audio-ci-e2e]
+    if: ${{ !contains(github.event.head_commit.message, '[skip-audio-canary]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Pre-deploy guard
+        run: bash scripts/deploy/deploy_guard.sh
+
+      - name: Canary deploy audio
+        id: audio_canary
+        run: bash scripts/deploy/canary_deploy.sh
+
+      - name: Shift traffic to canary
+        run: bash scripts/deploy/audio_shift_traffic.sh
+
+      - name: Post-canary audio smoke
+        run: bash scripts/deploy/post_canary_audio_smoke.sh
+
+      - name: Final promote after canary
+        id: deploy
+        if: success()
+        run: |
+          if [ -n "${DEPLOY_COMMAND}" ]; then
+            eval "${DEPLOY_COMMAND}"
+          else
+            echo "DEPLOY_COMMAND is empty; assuming traffic shift to 100% is final promote"
+          fi
+
+      - name: Upload deploy artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-deploy-artifacts
+          path: |
+            ${{ env.AUDIO_CI_REPORT_DIR }}/
+            ${{ env.AUDIO_PATCH_REPORT_DIR }}/
+          if-no-files-found: warn
+
+      - name: Auto rollback on failure after canary
+        if: failure() && steps.audio_canary.outcome == 'success'
+        run: bash scripts/deploy/rollback_canary.sh
+
+      - name: Build Slack payload
+        if: always()
+        run: |
+          python scripts/ci/build_audio_slack_payload.py \
+            --output .slack-payload.json \
+            --status "${{ job.status }}" \
+            --workflow "${{ github.workflow }}" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --commit-sha "${{ github.sha }}" \
+            --ref-name "${{ github.ref_name }}"
+
+      - name: Send Slack alert
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          payload-file-path: .slack-payload.json
+        env:
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
+
+  deploy-skip-note:
+    name: Deploy skipped note
+    if: ${{ contains(github.event.head_commit.message, '[skip-audio-canary]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Note skipped canary
+        run: echo "Audio canary skipped by commit flag [skip-audio-canary]"
