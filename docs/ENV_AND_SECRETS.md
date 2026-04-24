@@ -1,0 +1,22 @@
+# ENV + SECRETS
+
+## Required
+- `PROD_BASE_URL`
+- `CANARY_BASE_URL`
+- `CANARY_HEALTH_URL`
+- `CANARY_DEPLOY_COMMAND`
+- `SHIFT_TRAFFIC_COMMAND`
+- `ROLLBACK_COMMAND`
+- `FETCH_STABLE_COMMAND`
+
+## Optional but recommended
+- `SLACK_WEBHOOK_URL`
+- `TEST_USER_EMAIL`
+- `TEST_USER_PASSWORD`
+- `AUDIO_E2E_AUTH_ENABLED`
+- `AUDIO_SAMPLE_PATH`
+
+## Notes
+- `CANARY_BASE_URL` nên là domain/revision route riêng của canary.
+- `SHIFT_TRAFFIC_COMMAND` phải đọc `CANARY_PERCENT` từ env.
+- `ROLLBACK_COMMAND` nên dùng `STABLE_REVISION` khi platform hỗ trợ.

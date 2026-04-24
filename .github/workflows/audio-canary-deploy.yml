@@ -1,0 +1,113 @@
+name: audio-canary-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: Target environment
+        required: true
+        default: production
+      canary_steps:
+        description: Traffic steps CSV
+        required: true
+        default: 5,25,50,100
+  push:
+    branches: [main, master]
+    paths:
+      - 'backend/app/api/audio.py'
+      - 'backend/app/services/audio/**'
+      - 'backend/app/workers/**audio**'
+      - 'backend/app/workers/narration_worker.py'
+      - 'backend/app/workers/voice_clone_worker.py'
+      - 'backend/app/models/voice_*.py'
+      - 'backend/app/models/narration_job.py'
+      - 'backend/app/models/audio_render_output.py'
+      - '.github/workflows/audio-canary-deploy.yml'
+      - 'scripts/deploy/**'
+
+concurrency:
+  group: audio-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audio-gate:
+    uses: ./.github/workflows/audio-ci-e2e.yml
+    secrets: inherit
+
+  canary-deploy:
+    needs: [audio-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ github.event.inputs.target_env || 'production' }}
+    env:
+      TARGET_ENV: ${{ github.event.inputs.target_env || 'production' }}
+      CANARY_STEPS: ${{ github.event.inputs.canary_steps || '5,25,50,100' }}
+      BASE_URL: ${{ secrets.PROD_BASE_URL }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      AUTH_ENABLED: ${{ secrets.AUDIO_E2E_AUTH_ENABLED || '0' }}
+      AUTH_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+      AUTH_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      SAMPLE_PATH: ${{ secrets.AUDIO_SAMPLE_PATH || './backend/tests/fixtures/audio/test_sample.mp3' }}
+      CANARY_DEPLOY_COMMAND: ${{ secrets.CANARY_DEPLOY_COMMAND }}
+      SHIFT_TRAFFIC_COMMAND: ${{ secrets.SHIFT_TRAFFIC_COMMAND }}
+      ROLLBACK_COMMAND: ${{ secrets.ROLLBACK_COMMAND }}
+      FETCH_STABLE_COMMAND: ${{ secrets.FETCH_STABLE_COMMAND }}
+      CANARY_HEALTH_URL: ${{ secrets.CANARY_HEALTH_URL }}
+      CANARY_BASE_URL: ${{ secrets.CANARY_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate deploy env
+        run: |
+          test -n "$CANARY_DEPLOY_COMMAND"
+          test -n "$SHIFT_TRAFFIC_COMMAND"
+          test -n "$ROLLBACK_COMMAND"
+          test -n "$FETCH_STABLE_COMMAND"
+
+      - name: Fetch stable revision
+        id: stable
+        run: |
+          chmod +x scripts/deploy/canary_deploy.sh scripts/deploy/audio_shift_traffic.sh scripts/deploy/post_canary_audio_smoke.sh scripts/deploy/rollback_canary.sh || true
+          STABLE_REVISION=$(bash scripts/deploy/canary_deploy.sh fetch-stable)
+          echo "stable_revision=$STABLE_REVISION" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy canary revision
+        id: deploy
+        run: bash scripts/deploy/canary_deploy.sh deploy
+
+      - name: Canary smoke test
+        run: bash scripts/deploy/post_canary_audio_smoke.sh smoke
+
+      - name: Progressive traffic shift
+        run: bash scripts/deploy/audio_shift_traffic.sh "$CANARY_STEPS"
+
+      - name: Final audio smoke at 100%
+        run: bash scripts/deploy/post_canary_audio_smoke.sh final
+
+      - name: Rollback canary on failure
+        if: failure() && steps.deploy.outcome == 'success'
+        env:
+          STABLE_REVISION: ${{ steps.stable.outputs.stable_revision }}
+        run: bash scripts/deploy/rollback_canary.sh
+
+      - name: Upload canary artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-canary-artifacts
+          path: |
+            .verify_audio_e2e/**
+            .audio_canary/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Slack alert on failure
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          python scripts/deploy/build_canary_slack_payload.py > .audio_canary/slack_payload.json
+          curl -s -X POST -H 'Content-type: application/json' --data @.audio_canary/slack_payload.json "$SLACK_WEBHOOK_URL"
