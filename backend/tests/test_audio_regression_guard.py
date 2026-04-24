@@ -71,3 +71,4 @@ def test_artifact_static_route_serves_file(db_session, tmp_path, monkeypatch):
         res = c.get("/artifacts/audio/sample.preview.wav")
 
     assert res.status_code == 200
+    assert res.headers["content-type"].startswith("audio/")

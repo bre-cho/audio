@@ -35,3 +35,14 @@ def write_audio_artifacts(job_id: str) -> dict:
         "preview_url": f"/artifacts/audio/{job_id}.preview.wav",
         "output_url": f"/artifacts/audio/{job_id}.wav",
     }
+
+
+def write_clone_preview_artifact(job_id: str) -> str:
+    """Write a silent WAV placeholder for a clone preview and return its serving URL."""
+    audio_dir = Path(AUDIO_ARTIFACT_DIR)
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    preview_path = audio_dir / f"{job_id}.clone_preview.wav"
+    _write_silent_wav(preview_path)
+
+    return f"/artifacts/audio/{job_id}.clone_preview.wav"

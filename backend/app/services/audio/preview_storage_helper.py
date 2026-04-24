@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.services.object_storage import upload_file_to_object_storage
 
 
-def persist_audio_preview(*, audio_bytes: bytes, suffix: str = ".mp3") -> tuple[str, str | None]:
+def persist_audio_preview(*, audio_bytes: bytes, suffix: str = ".wav") -> tuple[str, str | None]:
     preview_dir = Path(getattr(settings, "audio_preview_dir", "/tmp/audio_previews"))
     preview_dir.mkdir(parents=True, exist_ok=True)
     filename = f"preview_{uuid4()}{suffix}"
@@ -21,6 +21,6 @@ def persist_audio_preview(*, audio_bytes: bytes, suffix: str = ".mp3") -> tuple[
     stored = upload_file_to_object_storage(
         local_path=str(local_path),
         key=storage_key,
-        content_type="audio/mpeg",
+        content_type="audio/wav",
     )
     return str(local_path), stored.public_url
