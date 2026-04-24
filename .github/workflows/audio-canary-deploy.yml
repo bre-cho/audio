@@ -112,9 +112,4 @@ jobs:
           python scripts/deploy/build_canary_slack_payload.py > .audio_canary/slack_payload.json
           curl -s -X POST -H 'Content-type: application/json' --data @.audio_canary/slack_payload.json "$SLACK_WEBHOOK_URL"
 
-      - name: Trigger incident report on failure
-        if: failure()
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          event-type: audio_incident_report
-          client-payload: '{"incident_context":"audio-canary-failure","alertname":"AudioCanaryFailure","severity":"critical"}'
+

@@ -14,4 +14,4 @@ if [[ -n "${CANARY_HEALTH_URL:-}" ]]; then
   curl -fsS "$CANARY_HEALTH_URL" | tee .audio_canary/healthz.txt >/dev/null
 fi
 
-bash verify_audio_e2e.sh | tee -a .audio_canary/smoke.log
+bash scripts/ci/verify_audio_e2e.sh | tee -a .audio_canary/smoke.log

@@ -15,21 +15,18 @@ on:
         description: "Severity"
         required: false
         default: "warning"
-  repository_dispatch:
-    types: [audio_incident_report]
   workflow_run:
     workflows: ["audio-chaos-ci", "audio-ci-e2e", "audio-canary-deploy"]
     types: [completed]
 
 concurrency:
-  group: auto-incident-report-${{ github.ref }}
+  group: auto-incident-${{ github.event.workflow_run.id || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   incident-report:
     if: >
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'repository_dispatch' ||
       github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     env:
@@ -44,9 +41,9 @@ jobs:
       REDIS_SERVICE: redis
       POSTGRES_SERVICE: postgres
       REPORT_DIR: .incident_report
-      INCIDENT_CONTEXT: ${{ github.event.inputs.incident_context || github.event.client_payload.incident_context || github.event.workflow_run.name || 'workflow-failure' }}
-      ALERT_NAME: ${{ github.event.inputs.alertname || github.event.client_payload.alertname || '' }}
-      ALERT_SEVERITY: ${{ github.event.inputs.severity || github.event.client_payload.severity || 'warning' }}
+      INCIDENT_CONTEXT: ${{ github.event.inputs.incident_context || github.event.workflow_run.name || 'workflow-failure' }}
+      ALERT_NAME: ${{ github.event.inputs.alertname || '' }}
+      ALERT_SEVERITY: ${{ github.event.inputs.severity || 'warning' }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4

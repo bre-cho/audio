@@ -73,10 +73,10 @@ jobs:
       CI: "true"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -149,13 +149,6 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload-file-path: artifacts/audio-ci/slack-payload.json
-
-      - name: Trigger incident report on failure
-        if: failure()
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          event-type: audio_incident_report
-          client-payload: '{"incident_context":"audio-ci-failure","alertname":"AudioCiFailure","severity":"critical"}'
 
       - name: Tear down stack
         if: always()

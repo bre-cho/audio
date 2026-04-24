@@ -42,10 +42,10 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -107,7 +107,7 @@ jobs:
 
       - name: Upload chaos artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: audio-chaos-artifacts
           path: |
@@ -149,9 +149,4 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Trigger incident report on failure
-        if: failure()
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          event-type: audio_incident_report
-          client-payload: '{"incident_context":"audio-chaos-failure","alertname":"AudioChaosFailure","severity":"critical"}'
+
