@@ -23,4 +23,7 @@ def get_job(job_id: UUID, db: Session = Depends(get_db)) -> JobStatusOut:
 
 @router.post('/{job_id}/retry', response_model=JobStatusOut)
 def retry_job(job_id: UUID, db: Session = Depends(get_db)) -> JobStatusOut:
-    return JobService(db).retry_job(job_id)
+    try:
+        return JobService(db).retry_job(job_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail='Job not found')
