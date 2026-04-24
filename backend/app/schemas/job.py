@@ -9,6 +9,9 @@ class JobStatusOut(BaseModel):
     status: str
     error_code: str | None = None
     error_message: str | None = None
+    runtime_json: dict = {}
+    preview_url: str | None = None
+    output_url: str | None = None
     created_at: datetime
     updated_at: datetime
 

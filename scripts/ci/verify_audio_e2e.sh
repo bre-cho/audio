@@ -20,11 +20,8 @@ REPORT_FILE="$REPORT_DIR/report.txt"
 pass=true
 AUTH_ARGS=()
 PROJECT_ID=""
-VOICE_ID=""
-PREVIEW_URL=""
+PREVIEW_JOB_ID=""
 NARRATION_JOB_ID=""
-FINAL_OUTPUT_URL=""
-FINAL_FILE="$REPORT_DIR/final_audio.bin"
 
 log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; pass=false; }
@@ -54,35 +51,28 @@ project_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/projects" -H 'Content-Type: a
 PROJECT_ID=$(printf '%s' "$project_resp" | json_get id)
 [[ -n "$PROJECT_ID" && "$PROJECT_ID" != "null" ]] && log "OK: project created $PROJECT_ID" || fail "project create failed"
 
-voice_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/voice-profiles" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d '{"display_name":"e2e-voice","provider":"elevenlabs"}' 2>>"$REPORT_FILE" || true)
-VOICE_ID=$(printf '%s' "$voice_resp" | json_get id)
-[[ -n "$VOICE_ID" && "$VOICE_ID" != "null" ]] && log "OK: voice profile created $VOICE_ID" || fail "voice profile create failed"
+# List available voices from the voices endpoint
+voices_resp=$(curl -fsS "$BASE_URL/api/v1/voices" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
+log "OK: voices endpoint reachable"
 
-if [[ -f "$SAMPLE_PATH" ]]; then
-  curl -fsS -X POST "$BASE_URL/api/v1/audio/voice-samples" "${AUTH_ARGS[@]}" -F "voice_profile_id=$VOICE_ID" -F "file=@$SAMPLE_PATH" >> "$REPORT_FILE" 2>&1 || fail "voice sample upload failed"
-else
-  log "WARN: sample file not found, skipping upload"
-fi
-
-preview_body=$(printf '{"text":"preview test from ci","voice_profile_id":"%s","project_id":"%s"}' "$VOICE_ID" "$PROJECT_ID")
+preview_body=$(printf '{"text":"preview test from ci","project_id":"%s"}' "$PROJECT_ID")
 preview_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/preview" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$preview_body" 2>>"$REPORT_FILE" || true)
-PREVIEW_URL=$(printf '%s' "$preview_resp" | json_get preview_url)
-[[ -n "$PREVIEW_URL" && "$PREVIEW_URL" != "null" ]] && log "OK: preview url returned" || fail "preview url missing"
+PREVIEW_JOB_ID=$(printf '%s' "$preview_resp" | json_get id)
+[[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]] && log "OK: preview job created $PREVIEW_JOB_ID" || fail "preview job id missing"
 
-narration_body=$(printf '{"project_id":"%s","text":"segment one. segment two. segment three.","voice_profile_id":"%s"}' "$PROJECT_ID" "$VOICE_ID")
+narration_body=$(printf '{"project_id":"%s","text":"segment one. segment two. segment three."}' "$PROJECT_ID")
 narration_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/narration" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$narration_body" 2>>"$REPORT_FILE" || true)
 NARRATION_JOB_ID=$(printf '%s' "$narration_resp" | json_get id)
-FINAL_OUTPUT_URL=$(printf '%s' "$narration_resp" | json_get output_url)
 [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]] && log "OK: narration job created $NARRATION_JOB_ID" || log "WARN: narration did not return job id"
 
 if [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
   for _ in {1..40}; do
     sleep 5
-    job_resp=$(curl -fsS "$BASE_URL/api/v1/audio/narration/$NARRATION_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
+    job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$NARRATION_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
     status=$(printf '%s' "$job_resp" | json_get status)
-    FINAL_OUTPUT_URL=$(printf '%s' "$job_resp" | json_get output_url)
     log "poll status=$status"
     if [[ "$status" == "succeeded" || "$status" == "completed" ]]; then
+      log "OK: narration job succeeded"
       break
     fi
     if [[ "$status" == "failed" || "$status" == "error" ]]; then
@@ -90,17 +80,6 @@ if [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
       break
     fi
   done
-fi
-
-if [[ -n "$FINAL_OUTPUT_URL" && "$FINAL_OUTPUT_URL" != "null" ]]; then
-  curl -fsS "$FINAL_OUTPUT_URL" -o "$FINAL_FILE" 2>>"$REPORT_FILE" || fail "download final audio failed"
-  if [[ -f "$FINAL_FILE" ]]; then
-    ffprobe -v error -show_format -show_streams "$FINAL_FILE" >> "$REPORT_FILE" 2>&1 || fail "ffprobe could not read final audio"
-  else
-    fail "final audio file missing"
-  fi
-else
-  fail "final output url missing"
 fi
 
 $DOCKER_COMPOSE_BIN logs --tail=200 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true

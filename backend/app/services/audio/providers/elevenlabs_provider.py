@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.audio.elevenlabs_adapter import ElevenLabsAdapter
+from app.providers.elevenlabs import ElevenLabsProvider
 from app.services.audio.provider_base import (
     AudioCloneResult,
     AudioProviderVoice,
@@ -13,16 +13,12 @@ class ElevenLabsAudioProvider(BaseAudioProviderAdapter):
     provider_name = "elevenlabs"
 
     def __init__(self) -> None:
-        self.adapter = ElevenLabsAdapter()
+        self._provider = ElevenLabsProvider()
 
     async def list_voices(self) -> list[AudioProviderVoice]:
-        result = await self.adapter.list_voices()
-        if not result.get("ok"):
-            return []
-        body = result.get("body") or {}
-        items = body.get("voices") or body.get("shared_voices") or []
+        raw_voices = self._provider.list_voices()
         voices: list[AudioProviderVoice] = []
-        for item in items:
+        for item in raw_voices:
             voice_id = item.get("voice_id") or item.get("shared_voice_id")
             if not voice_id:
                 continue
@@ -48,12 +44,10 @@ class ElevenLabsAudioProvider(BaseAudioProviderAdapter):
         output_format: str | None = None,
         options: dict | None = None,
     ) -> AudioSynthesisResult:
-        audio_bytes = await self.adapter.synthesize_speech(
-            voice_id=voice_id,
-            text=text,
-            model_id=model_id,
-            output_format=output_format or "mp3_44100_128",
+        result = self._provider.generate_speech(
+            {"voice_id": voice_id, "text": text, "model_id": model_id, "output_format": output_format or "mp3_44100_128"}
         )
+        audio_bytes: bytes = result.get("audio_bytes") or b""
         return AudioSynthesisResult(
             provider=self.provider_name,
             audio_bytes=audio_bytes,
@@ -69,25 +63,22 @@ class ElevenLabsAudioProvider(BaseAudioProviderAdapter):
         remove_background_noise: bool = True,
         options: dict | None = None,
     ) -> AudioCloneResult:
-        result = await self.adapter.create_ivc_voice(
-            name=name,
-            files=files,
-            remove_background_noise=remove_background_noise,
+        result = self._provider.clone_voice(
+            {"name": name, "files": files, "remove_background_noise": remove_background_noise}
         )
-        if result.get("ok"):
-            body = result.get("body") or {}
+        if result.get("status") not in ("failed", "error"):
             return AudioCloneResult(
                 provider=self.provider_name,
-                provider_voice_id=body.get("voice_id"),
+                provider_voice_id=result.get("voice_id"),
                 status="ready",
-                raw=body,
+                raw=result,
             )
         return AudioCloneResult(
             provider=self.provider_name,
             provider_voice_id=None,
             status="failed",
             raw=result,
-            error_message=str(result.get("body") or result.get("status_code") or "clone_failed"),
+            error_message=str(result.get("error") or "clone_failed"),
         )
 
     async def compose_music(
@@ -98,14 +89,13 @@ class ElevenLabsAudioProvider(BaseAudioProviderAdapter):
         force_instrumental: bool = True,
         options: dict | None = None,
     ) -> AudioSynthesisResult:
-        music_bytes = await self.adapter.compose_music(
-            prompt_text=prompt_text,
-            duration_seconds=duration_seconds,
-            force_instrumental=force_instrumental,
+        result = self._provider.generate_speech(
+            {"prompt_text": prompt_text, "duration_seconds": duration_seconds, "force_instrumental": force_instrumental}
         )
+        audio_bytes: bytes = result.get("audio_bytes") or b""
         return AudioSynthesisResult(
             provider=self.provider_name,
-            audio_bytes=music_bytes,
+            audio_bytes=audio_bytes,
             content_type="audio/mpeg",
             output_format="mp3",
         )
