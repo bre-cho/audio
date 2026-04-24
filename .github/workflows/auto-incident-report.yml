@@ -107,6 +107,14 @@ jobs:
           python scripts/incident/sync_parent_slack_thread.py \
             --classification .incident_classification.json
 
+      - name: Sync parent incident issue mapping back
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/incident/sync_parent_issue.py \
+            --repo "${{ github.repository }}" \
+            --classification .incident_classification.json
+
       - name: Persist sync state to memory
         run: |
           python - <<'PY'
@@ -152,6 +160,8 @@ jobs:
               print(f'CHILD_ACTION={child.get("action", "none")}')
               print(f'PARENT_ISSUE_URL={parent.get("issue_url", "")}')
               print(f'SLACK_THREAD_TS={parent.get("slack_thread_ts", "")}')
+              print(f'MAPPING_SOURCE={parent.get("mapping_source", "github_issue")}')
+              print(f'MAPPING_LOCK={parent.get("mapping_lock", "authoritative")}')
           except Exception:
               print("ESC_MODE=channel_only")
               print("STORM_ACTIVE=false")
@@ -161,6 +171,8 @@ jobs:
               print("CHILD_ACTION=none")
               print("PARENT_ISSUE_URL=")
               print("SLACK_THREAD_TS=")
+              print("MAPPING_SOURCE=github_issue")
+              print("MAPPING_LOCK=authoritative")
           PY
 
       - name: Collect root cause snapshot

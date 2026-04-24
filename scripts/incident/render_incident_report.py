@@ -93,6 +93,10 @@ def main():
     slack_channel = parent.get("slack_channel_id", "")
     slack_thread_ts = parent.get("slack_thread_ts", "")
 
+    # v13 — source of truth lock
+    mapping_source = parent.get("mapping_source", "github_issue")
+    mapping_lock = parent.get("mapping_lock", "authoritative")
+
     md = f"""# Auto Incident Report
 
 - Workflow: `{data.get('workflow_name', '')}`
@@ -119,6 +123,8 @@ def main():
 - Parent issue URL: {issue_url}
 - Slack channel: `{slack_channel}`
 - Slack thread_ts: `{slack_thread_ts}`
+- Mapping source: `{mapping_source}`
+- Mapping lock: `{mapping_lock}`
 
 ## Summary
 {data.get('summary', '')}
@@ -148,6 +154,11 @@ def main():
 ## Slack Thread Sync
 - First parent incident opens root Slack message
 - Child incidents reply into the same thread
+
+## Source of Truth
+- GitHub Issue marker is authoritative for parent mapping
+- Slack thread creation must read issue mapping first
+- Memory file is a cache only; do not treat it as lock source
 
 ## Ranked Causes
 {ranked_lines}
