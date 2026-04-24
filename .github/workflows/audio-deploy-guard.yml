@@ -56,20 +56,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api repos/${{ github.repository }}/commits/${{ needs.preflight.outputs.deploy_ref }}/status >/tmp/commit_status.json || true
-          cat /tmp/commit_status.json | python - <<'PY'
-import json,sys
-p='/tmp/commit_status.json'
-try:
-    data=json.load(open(p))
-except Exception:
-    print('WARN: commit status not available; falling back to branch protection expectations')
-    sys.exit(0)
-state=data.get('state')
-print('commit combined state:', state)
-if state == 'failure':
-    print('Blocking deploy: combined commit status is failure')
-    sys.exit(1)
-PY
+          python - <<'PY'
+          import json, sys
+          p = '/tmp/commit_status.json'
+          try:
+            data = json.load(open(p, encoding='utf-8'))
+          except Exception:
+            print('WARN: commit status not available; falling back to branch protection expectations')
+            sys.exit(0)
+          state = data.get('state')
+          print('commit combined state:', state)
+          if state == 'failure':
+            print('Blocking deploy: combined commit status is failure')
+            sys.exit(1)
+          PY
 
   deploy:
     name: deploy release
@@ -126,12 +126,12 @@ PY
           DEPLOY_REF: ${{ needs.preflight.outputs.deploy_ref }}
         run: |
           python - <<'PY' > slack.json
-import json, os
-text = {
-  "text": f"Audio deploy guard failed/rolled back | env={os.getenv('ENV_NAME')} | ref={os.getenv('DEPLOY_REF')} | run={os.getenv('RUN_URL')}"
-}
-print(json.dumps(text))
-PY
+          import json, os
+          text = {
+            "text": f"Audio deploy guard failed/rolled back | env={os.getenv('ENV_NAME')} | ref={os.getenv('DEPLOY_REF')} | run={os.getenv('RUN_URL')}"
+          }
+          print(json.dumps(text))
+          PY
       - name: Send Slack alert
         if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
         uses: slackapi/slack-github-action@v2.1.1
