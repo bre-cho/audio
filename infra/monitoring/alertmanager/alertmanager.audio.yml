@@ -1,0 +1,42 @@
+route:
+  receiver: default-null
+  group_by: ['alertname', 'team', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 2h
+  routes:
+    - matchers:
+        - team="audio"
+        - severity="critical"
+      receiver: audio-slack-critical
+      continue: true
+    - matchers:
+        - team="audio"
+        - severity="warning"
+      receiver: audio-slack-warning
+
+receivers:
+  - name: default-null
+  - name: audio-slack-critical
+    slack_configs:
+      - api_url: ${SLACK_WEBHOOK_URL}
+        channel: '#alerts-audio'
+        send_resolved: true
+        title: '[CRITICAL] {{ .CommonLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Labels:* {{ .Labels }}
+          {{ end }}
+  - name: audio-slack-warning
+    slack_configs:
+      - api_url: ${SLACK_WEBHOOK_URL}
+        channel: '#alerts-audio'
+        send_resolved: true
+        title: '[WARNING] {{ .CommonLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          {{ end }}

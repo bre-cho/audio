@@ -1,0 +1,54 @@
+name: audio-health-monitor
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: audio-health-monitor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-audio-monitor:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ secrets.MONITOR_BASE_URL }}
+      AUTH_ENABLED: 1
+      AUTH_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+      AUTH_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run synthetic audio probe
+        run: bash scripts/monitoring/audio_synthetic_probe.sh
+
+      - name: Build heartbeat metrics file
+        if: success()
+        run: python3 scripts/monitoring/push_audio_heartbeat_metrics.py --output .audio_synthetic_probe/heartbeat.prom --preview-ok --narration-ok
+
+      - name: Upload probe artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-health-monitor-report
+          path: .audio_synthetic_probe/
+
+      - name: Build Slack payload
+        if: failure()
+        run: python3 scripts/monitoring/build_audio_slack_alert.py > .audio_synthetic_probe/slack_payload.json
+
+      - name: Slack alert on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          payload-file-path: .audio_synthetic_probe/slack_payload.json
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

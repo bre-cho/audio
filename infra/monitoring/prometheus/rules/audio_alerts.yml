@@ -1,0 +1,112 @@
+groups:
+  - name: audio-health
+    rules:
+      - alert: AudioPreviewSyntheticProbeFailed
+        expr: probe_success{job="audio-health-blackbox",instance="http://api:8000/api/v1/audio/health"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: audio
+        annotations:
+          summary: "Audio health endpoint is failing"
+          description: "Audio health endpoint has not returned 2xx for 2 minutes."
+
+      - alert: AudioNoSuccessfulPreviewHeartbeat
+        expr: time() - audio_preview_last_success_timestamp_seconds > 300
+        for: 2m
+        labels:
+          severity: critical
+          team: audio
+        annotations:
+          summary: "No successful preview heartbeat in 5m"
+          description: "Synthetic or real preview success metric has stalled for more than 5 minutes."
+
+      - alert: AudioNoSuccessfulNarrationHeartbeat
+        expr: time() - audio_narration_last_success_timestamp_seconds > 600
+        for: 2m
+        labels:
+          severity: critical
+          team: audio
+        annotations:
+          summary: "No successful narration heartbeat in 10m"
+          description: "Narration success heartbeat is stale."
+
+      - alert: AudioPreviewP95LatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(audio_preview_latency_seconds_bucket[5m])) by (le)) > 4
+        for: 10m
+        labels:
+          severity: warning
+          team: audio
+        annotations:
+          summary: "Audio preview p95 latency above 4s"
+          description: "Preview latency p95 has been above 4 seconds for 10 minutes."
+
+      - alert: AudioNarrationP95LatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(audio_narration_job_latency_seconds_bucket[10m])) by (le)) > 45
+        for: 10m
+        labels:
+          severity: warning
+          team: audio
+        annotations:
+          summary: "Audio narration p95 latency above 45s"
+          description: "Narration latency p95 is degraded."
+
+      - alert: AudioQueueDepthHigh
+        expr: audio_narration_queue_depth + audio_voice_clone_queue_depth + audio_audio_mix_queue_depth > 25
+        for: 10m
+        labels:
+          severity: warning
+          team: audio
+        annotations:
+          summary: "Audio queue depth high"
+          description: "Combined audio queue depth has been above 25 for 10 minutes."
+
+      - alert: AudioQueueDepthCritical
+        expr: audio_narration_queue_depth + audio_voice_clone_queue_depth + audio_audio_mix_queue_depth > 75
+        for: 5m
+        labels:
+          severity: critical
+          team: audio
+        annotations:
+          summary: "Audio queue depth critical"
+          description: "Combined audio queue depth is above 75."
+
+      - alert: AudioJobsStuckDetected
+        expr: sum(audio_jobs_stuck_total) by (job_type) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: audio
+        annotations:
+          summary: "Audio stuck jobs detected"
+          description: "One or more audio jobs are stuck beyond policy threshold."
+
+      - alert: AudioProviderFailureRateHigh
+        expr: sum(rate(audio_provider_failures_total[10m])) by (provider) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: audio
+        annotations:
+          summary: "Audio provider failure rate elevated"
+          description: "Provider {{ $labels.provider }} is erroring above threshold."
+
+      - alert: AudioPreviewErrorRateHigh
+        expr: sum(rate(audio_preview_requests_total{status="failed"}[10m])) / clamp_min(sum(rate(audio_preview_requests_total[10m])), 1) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: audio
+        annotations:
+          summary: "Audio preview error rate > 5%"
+          description: "Preview failure rate exceeded 5% over last 10 minutes."
+
+      - alert: AudioNarrationErrorRateHigh
+        expr: sum(rate(audio_narration_jobs_total{status="failed"}[10m])) / clamp_min(sum(rate(audio_narration_jobs_total[10m])), 1) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+          team: audio
+        annotations:
+          summary: "Audio narration error rate > 10%"
+          description: "Narration jobs are failing above critical threshold."
