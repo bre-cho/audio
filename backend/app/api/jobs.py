@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.schemas.job import JobStatusOut
-from app.services.job_service import JobService
+from app.services.job_service import JobService, UnsupportedRetryJobTypeError
 
 router = APIRouter()
 
@@ -25,5 +25,7 @@ def get_job(job_id: UUID, db: Session = Depends(get_db)) -> JobStatusOut:
 def retry_job(job_id: UUID, db: Session = Depends(get_db)) -> JobStatusOut:
     try:
         return JobService(db).retry_job(job_id)
+    except UnsupportedRetryJobTypeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except ValueError:
         raise HTTPException(status_code=404, detail='Job not found')
