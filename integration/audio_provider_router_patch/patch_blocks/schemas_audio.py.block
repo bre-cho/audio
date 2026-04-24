@@ -1,0 +1,21 @@
+# VoiceProfileCreateRequest
+provider: str = "elevenlabs"
+
+# VoiceProfileResponse
+clone_status: str | None = None
+source_type: str | None = None
+visibility: str | None = None
+
+# AudioPreviewRequest
+provider: str | None = None
+
+# NarrationJobResponse
+provider: str | None = None
+
+# Optional response model for preview
+class AudioPreviewResponse(BaseModel):
+    ok: bool
+    provider: str
+    voice_profile_id: str
+    preview_url: str | None = None
+    bytes_length: int

@@ -1,0 +1,19 @@
+"""Patch map for backend/app/api/audio.py"""
+
+# 1) Replace import:
+# from app.services.audio.elevenlabs_adapter import ElevenLabsAdapter
+# with:
+from uuid import uuid4
+from app.core.config import settings
+from app.services.audio_provider_router import get_audio_provider_adapter, resolve_audio_provider
+from app.services.object_storage import upload_file_to_object_storage
+
+# 2) In post_voice_profile(...), forward payload.provider into create_voice_profile(...)
+
+# 3) In post_audio_preview(...):
+# provider = resolve_audio_provider(requested_provider=payload.provider, voice_provider=profile.provider, default_provider=settings.audio_provider_default)
+# adapter = get_audio_provider_adapter(provider)
+# result = await adapter.synthesize_speech(...)
+# write temp file -> optional object storage upload -> return preview_url + provider + bytes_length
+
+# 4) In post_narration_job(...), no business logic change needed beyond provider flowing through job

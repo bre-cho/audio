@@ -1,0 +1,23 @@
+"""Patch map for backend/app/services/audio/narration_service.py"""
+
+# 1) Replace import:
+# from app.services.audio.elevenlabs_adapter import ElevenLabsAdapter
+# with:
+from app.services.audio_provider_router import get_audio_provider_adapter, resolve_audio_provider
+
+# 2) Before synthesis, resolve provider safely:
+# provider = resolve_audio_provider(requested_provider=job.provider, voice_provider=profile.provider, default_provider=settings.audio_provider_default)
+# adapter = get_audio_provider_adapter(provider)
+
+# 3) Replace synthesize call with provider contract:
+# result = await adapter.synthesize_speech(
+#     voice_id=profile.provider_voice_id,
+#     text=segment.text,
+#     model_id=settings.elevenlabs_tts_model_id if provider == "elevenlabs" else None,
+#     output_format=settings.audio_output_format,
+#     options={"style_preset": job.style_preset},
+# )
+# audio_bytes = result.audio_bytes
+
+# 4) Persist final provider back to job for observability:
+# job.provider = provider

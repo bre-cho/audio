@@ -1,0 +1,26 @@
+"""Patch map for backend/app/services/audio/voice_clone_service.py"""
+
+# 1) Replace import:
+# from app.services.audio.elevenlabs_adapter import ElevenLabsAdapter
+# with:
+from uuid import uuid4
+from app.services.audio_provider_router import get_audio_provider_adapter, resolve_audio_provider
+
+# 2) In create_voice_profile(...), add argument: provider: str = "elevenlabs"
+# and persist:
+# provider=resolve_audio_provider(requested_provider=provider)
+# clone_status="ready" if provider_voice_id else "draft"
+# source_type="cloned" if clone_mode != "library" else "system"
+# visibility="private"
+
+# 3) In save_voice_sample(...), replace target path logic with unique namespaced path:
+# safe_name = Path(filename).name
+# target_path = target_dir / voice_profile_id / f"{uuid4()}_{safe_name}"
+# target_path.parent.mkdir(parents=True, exist_ok=True)
+
+# 4) In clone_voice_if_needed(...), replace ElevenLabsAdapter() with:
+# provider = resolve_audio_provider(requested_provider=profile.provider, voice_provider=profile.provider)
+# adapter = get_audio_provider_adapter(provider)
+# profile.clone_status = "cloning"; db.commit()
+# result = await adapter.clone_voice(...)
+# update provider_voice_id / clone_status / clone_error from result
