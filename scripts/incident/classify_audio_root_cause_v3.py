@@ -9,6 +9,10 @@ MAX_CONFIDENCE = 0.99
 GAP_WEIGHT = 0.08
 SECONDARY_CAUSE_THRESHOLD = 0.35
 
+
+def load_json(p):
+    return json.loads(Path(p).read_text()) if Path(p).exists() else {}
+
 ACTION_MAP = {
     "provider_failure": {
         "commands": ["check provider quota/status", "retry failed job once"],
@@ -210,6 +214,14 @@ def main():
     ordered, primary, secondary, confidence = pick_top(scores)
     root = primary[0] if primary[1] > 0 else "unknown"
 
+    # v18 — knowledge memory: boost confidence and inject commands if pattern matches
+    kb = load_json(".incident_knowledge.json")
+    patterns = kb.get("patterns", [])
+    for p in patterns:
+        if p["root_cause"] == root:
+            confidence = round(min(MAX_CONFIDENCE, confidence + min(0.1 * p["count"], 0.3)), 2)
+    matched_pattern = next((p for p in patterns if p["root_cause"] == root), None)
+
     secondary_cause = secondary[0] if secondary[1] > 0 else None
     if secondary[1] <= 0 or secondary[1] < max(1, int(primary[1] * SECONDARY_CAUSE_THRESHOLD)):
         secondary_cause = None
@@ -231,6 +243,8 @@ def main():
     # Recommended actions (v5)
     primary_actions = dict(ACTION_MAP.get(root, ACTION_MAP["unknown"]))
     primary_actions["commands"] = list(primary_actions["commands"])
+    if matched_pattern and matched_pattern.get("commands"):
+        primary_actions["commands"] = matched_pattern["commands"]
     if root == "ffmpeg_failure" and secondary_cause == "provider_failure":
         primary_actions["commands"].insert(
             0, "check whether corrupt upstream asset caused ffmpeg decode failure"

@@ -97,6 +97,16 @@ def main():
     mapping_source = parent.get("mapping_source", "github_issue")
     mapping_lock = parent.get("mapping_lock", "authoritative")
 
+    # v17 — finalizer
+    finalizer = data.get("finalizer", {})
+    finalizer_status = finalizer.get("status", "not_finalized")
+    postmortem_seed = finalizer.get("postmortem_seed")
+
+    # v18 — knowledge memory
+    km = data.get("knowledge_memory", {})
+    km_fp = km.get("fingerprint")
+    km_count = km.get("pattern_count")
+
     # v16 — drift detector
     recon = data.get("state_reconciler", {})
     drift = recon.get("drift", {})
@@ -227,7 +237,18 @@ def main():
     md += f"""
 ## Suggested next action
 {NEXT_ACTIONS.get(root, NEXT_ACTIONS['unknown'])}
+
+## Finalizer
+- Status: `{finalizer_status}`
+- Postmortem seed: `{postmortem_seed}`
+
+## Knowledge Memory
+- Fingerprint: `{km_fp}`
+- Total patterns stored: `{km_count}`
 """
+
+    if parent.get("status") == "resolved":
+        md += "\n## Closure Handoff\n- Parent incident is resolved\n- Postmortem seed should be reviewed before archival\n"
 
     Path(args.output).write_text(md, encoding="utf-8")
     print(md)
