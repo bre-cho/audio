@@ -8,7 +8,8 @@ set -euo pipefail
 FINALIZER_STATUS="$(python - <<'PY'
 import json
 try:
-    print(json.load(open(".incident_classification.json")).get("finalizer", {}).get("status", "not_finalized"))
+    with open(".incident_classification.json") as f:
+        print(json.load(f).get("finalizer", {}).get("status", "not_finalized"))
 except Exception:
     print("not_finalized")
 PY
@@ -18,7 +19,8 @@ PY
 POSTMORTEM_SEED="$(python - <<'PY'
 import json
 try:
-    print(json.load(open(".incident_classification.json")).get("finalizer", {}).get("postmortem_seed", ""))
+    with open(".incident_classification.json") as f:
+        print(json.load(f).get("finalizer", {}).get("postmortem_seed", ""))
 except Exception:
     print("")
 PY
@@ -28,7 +30,8 @@ PY
 KM_FP="$(python - <<'PY'
 import json
 try:
-    print(json.load(open(".incident_classification.json")).get("knowledge_memory", {}).get("fingerprint", ""))
+    with open(".incident_classification.json") as f:
+        print(json.load(f).get("knowledge_memory", {}).get("fingerprint", ""))
 except Exception:
     print("")
 PY
@@ -38,7 +41,8 @@ PY
 KM_COUNT="$(python - <<'PY'
 import json
 try:
-    print(json.load(open(".incident_classification.json")).get("knowledge_memory", {}).get("pattern_count", 0))
+    with open(".incident_classification.json") as f:
+        print(json.load(f).get("knowledge_memory", {}).get("pattern_count", 0))
 except Exception:
     print(0)
 PY

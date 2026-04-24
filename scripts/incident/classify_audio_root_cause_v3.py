@@ -214,13 +214,16 @@ def main():
     ordered, primary, secondary, confidence = pick_top(scores)
     root = primary[0] if primary[1] > 0 else "unknown"
 
-    # v18 — knowledge memory: boost confidence and inject commands if pattern matches
+    # v18 — knowledge memory: boost confidence and capture matched pattern in one pass.
+    # Each matching occurrence adds 0.1 to confidence (capped at +0.3 total boost).
     kb = load_json(".incident_knowledge.json")
     patterns = kb.get("patterns", [])
+    matched_pattern = None
     for p in patterns:
         if p["root_cause"] == root:
             confidence = round(min(MAX_CONFIDENCE, confidence + min(0.1 * p["count"], 0.3)), 2)
-    matched_pattern = next((p for p in patterns if p["root_cause"] == root), None)
+            matched_pattern = p
+            break
 
     secondary_cause = secondary[0] if secondary[1] > 0 else None
     if secondary[1] <= 0 or secondary[1] < max(1, int(primary[1] * SECONDARY_CAUSE_THRESHOLD)):

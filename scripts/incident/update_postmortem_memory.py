@@ -3,6 +3,7 @@ import argparse, hashlib, json
 from pathlib import Path
 
 
+
 def load_json(p):
     return json.loads(Path(p).read_text()) if Path(p).exists() else {}
 
@@ -12,7 +13,7 @@ def save_json(p, d):
 
 
 def fingerprint(root, secondary):
-    return hashlib.sha1(f"{root}:{secondary}".encode()).hexdigest()[:12]
+    return hashlib.sha256(f"{root}:{secondary}".encode()).hexdigest()[:12]
 
 
 def main():
@@ -48,7 +49,7 @@ def main():
     if existing:
         existing["count"] += 1
         # Merge commands without duplicates
-        existing["commands"] = list(dict.fromkeys(existing["commands"] + entry["commands"]))
+        existing["commands"] = list(dict.fromkeys(existing["commands"] + entry["commands"]))  # dedupe, preserve order
     else:
         kb.setdefault("patterns", []).append(entry)
 
