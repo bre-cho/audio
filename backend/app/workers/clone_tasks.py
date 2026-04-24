@@ -56,14 +56,21 @@ def process_clone_job(self, job_id: str) -> dict:
         )
         return {'job_id': job_id, 'status': 'succeeded', 'voice_profile_id': voice_profile_id}
     except Exception as exc:
-        logger.exception("process_clone_job failed for %s", job_id)
+        logger.exception("Clone task failed for %s", job_id)
         if self.request.retries >= self.max_retries:
             _update_job(
                 job_id,
                 status='failed',
-                error_code='clone_error',
+                error_code='clone_task_error',
                 error_message=str(exc),
                 finished_at=datetime.now(UTC),
+            )
+        else:
+            _update_job(
+                job_id,
+                status='retrying',
+                error_code='clone_task_retrying',
+                error_message=str(exc),
             )
         raise self.retry(exc=exc, countdown=10)
 
@@ -80,18 +87,26 @@ def process_clone_preview_job(self, job_id: str) -> dict:
         _update_job(
             job_id,
             status='succeeded',
+            preview_url=preview_url,
             runtime_json=runtime,
             finished_at=datetime.now(UTC),
         )
         return {'job_id': job_id, 'status': 'succeeded', 'preview_url': preview_url}
     except Exception as exc:
-        logger.exception("process_clone_preview_job failed for %s", job_id)
+        logger.exception("Clone task failed for %s", job_id)
         if self.request.retries >= self.max_retries:
             _update_job(
                 job_id,
                 status='failed',
-                error_code='clone_preview_error',
+                error_code='clone_task_error',
                 error_message=str(exc),
                 finished_at=datetime.now(UTC),
+            )
+        else:
+            _update_job(
+                job_id,
+                status='retrying',
+                error_code='clone_task_retrying',
+                error_message=str(exc),
             )
         raise self.retry(exc=exc, countdown=10)

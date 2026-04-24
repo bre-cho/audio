@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, Field, computed_field
 
@@ -6,7 +7,7 @@ from pydantic import BaseModel, Field, computed_field
 class JobStatusOut(BaseModel):
     id: UUID
     job_type: str
-    status: str
+    status: Literal["queued", "processing", "retrying", "succeeded", "failed"]
     error_code: str | None = None
     error_message: str | None = None
     runtime_json: dict = Field(default_factory=dict)
