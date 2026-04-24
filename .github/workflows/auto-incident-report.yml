@@ -115,6 +115,15 @@ jobs:
             --repo "${{ github.repository }}" \
             --classification .incident_classification.json
 
+      - name: Reconcile parent incident state
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          python scripts/incident/reconcile_parent_state.py \
+            --repo "${{ github.repository }}" \
+            --classification .incident_classification.json
+
       - name: Persist sync state to memory
         run: |
           python - <<'PY'
