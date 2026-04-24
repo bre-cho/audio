@@ -10,14 +10,6 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-def _get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 def _update_job(job_id: str, **kwargs) -> None:
     db = SessionLocal()
     try:

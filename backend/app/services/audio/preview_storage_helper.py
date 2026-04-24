@@ -1,17 +1,10 @@
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import settings
-from app.core.storage import StorageService, StoredObject
-
-
-def upload_file_to_object_storage(*, local_path: str, key: str, content_type: str) -> StoredObject:
-    data = Path(local_path).read_bytes()
-    svc = StorageService()
-    return svc.put_bytes(key, data, content_type)
+from app.services.object_storage import upload_file_to_object_storage
 
 
 def persist_audio_preview(*, audio_bytes: bytes, suffix: str = ".mp3") -> tuple[str, str | None]:
