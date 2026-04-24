@@ -79,3 +79,47 @@ def test_failed_status_set_on_final_retry(db_session, tmp_path, monkeypatch):
     assert updated.status == "failed", f"expected 'failed', got '{updated.status}'"
     assert updated.error_code == "audio_task_error"
     assert updated.finished_at is not None
+
+
+def test_retry_clone_enqueues_clone_task(db_session):
+    """retry_job on a 'clone' job must call enqueue_clone_job."""
+    from app.services.job_service import JobService
+
+    repo = JobRepository(db_session)
+    job = repo.create(
+        user_id="00000000-0000-0000-0000-000000000001",
+        job_type="clone",
+        request_json={"voice_name": "test"},
+    )
+    job.status = "failed"
+    db_session.add(job)
+    db_session.commit()
+
+    with patch("app.services.job_service.enqueue_clone_job") as mock_enqueue:
+        svc = JobService(db_session)
+        result = svc.retry_job(job.id)
+
+    mock_enqueue.assert_called_once_with(str(job.id))
+    assert result.status == "queued"
+
+
+def test_retry_clone_preview_enqueues_clone_preview_task(db_session):
+    """retry_job on a 'clone_preview' job must call enqueue_clone_preview_job."""
+    from app.services.job_service import JobService
+
+    repo = JobRepository(db_session)
+    job = repo.create(
+        user_id="00000000-0000-0000-0000-000000000001",
+        job_type="clone_preview",
+        request_json={"voice_name": "test"},
+    )
+    job.status = "failed"
+    db_session.add(job)
+    db_session.commit()
+
+    with patch("app.services.job_service.enqueue_clone_preview_job") as mock_enqueue:
+        svc = JobService(db_session)
+        result = svc.retry_job(job.id)
+
+    mock_enqueue.assert_called_once_with(str(job.id))
+    assert result.status == "queued"

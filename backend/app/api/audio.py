@@ -61,7 +61,8 @@ def audio_health(db: Session = Depends(get_db)) -> dict:
         'last_success_timestamps': {
             'audio_preview_last_success_timestamp_seconds': _last_success('tts_preview'),
             'audio_narration_last_success_timestamp_seconds': _last_success('narration'),
-            'audio_clone_last_success_timestamp_seconds': _last_success('voice_clone'),
+            'audio_clone_last_success_timestamp_seconds': _last_success('clone'),
+            'audio_clone_preview_last_success_timestamp_seconds': _last_success('clone_preview'),
         },
     }
 
