@@ -171,6 +171,10 @@ jobs:
               print(f'SLACK_THREAD_TS={parent.get("slack_thread_ts", "")}')
               print(f'MAPPING_SOURCE={parent.get("mapping_source", "github_issue")}')
               print(f'MAPPING_LOCK={parent.get("mapping_lock", "authoritative")}')
+              drift = d.get("state_reconciler", {}).get("drift", {})
+              print(f'DRIFT_LEVEL={drift.get("level", "none")}')
+              print(f'DRIFT_ACTION={drift.get("action", "none")}')
+              print(f'DRIFT_REASON={drift.get("reason", "")}')
           except Exception:
               print("ESC_MODE=channel_only")
               print("STORM_ACTIVE=false")
@@ -182,12 +186,41 @@ jobs:
               print("SLACK_THREAD_TS=")
               print("MAPPING_SOURCE=github_issue")
               print("MAPPING_LOCK=authoritative")
+              print("DRIFT_LEVEL=none")
+              print("DRIFT_ACTION=none")
+              print("DRIFT_REASON=")
           PY
 
-      - name: Collect root cause snapshot
-        run: bash scripts/incident/collect_root_cause_snapshot.sh
+      - name: Print drift decision
+        if: always()
+        run: echo "drift=${{ env.DRIFT_LEVEL }} action=${{ env.DRIFT_ACTION }} reason=${{ env.DRIFT_REASON }}"
 
-      - name: Generate markdown incident report
+      - name: Retry parent sync once
+        if: always() && env.DRIFT_LEVEL == 'needs_retry'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        run: |
+          python scripts/incident/sync_parent_issue.py \
+            --repo "${{ github.repository }}" \
+            --classification .incident_classification.json
+          python scripts/incident/sync_parent_slack_thread.py \
+            --classification .incident_classification.json
+          python scripts/incident/reconcile_parent_state.py \
+            --repo "${{ github.repository }}" \
+            --classification .incident_classification.json
+
+      - name: Escalate state corruption
+        if: always() && env.DRIFT_LEVEL == 'needs_human_review'
+        run: echo "::warning::State corruption detected (reason=${{ env.DRIFT_REASON }}); escalating to human review"
+
+      - name: Stop risky auto-repair chain
+        if: always() && env.DRIFT_LEVEL == 'needs_human_review'
+        run: echo "::warning::Skipping risky auto-overwrite/post actions due to multi-source state corruption"
+
+      - name: Collect root cause snapshot
+        run: bash scripts/incident/collect_root_cause_snapshot.sh      - name: Generate markdown incident report
         run: bash scripts/incident/generate_incident_report.sh
 
       - name: Upload incident artifacts

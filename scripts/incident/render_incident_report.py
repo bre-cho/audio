@@ -97,6 +97,14 @@ def main():
     mapping_source = parent.get("mapping_source", "github_issue")
     mapping_lock = parent.get("mapping_lock", "authoritative")
 
+    # v16 — drift detector
+    recon = data.get("state_reconciler", {})
+    drift = recon.get("drift", {})
+    drift_level = drift.get("level", "none")
+    drift_action = drift.get("action", "none")
+    drift_reason = drift.get("reason", "")
+    drift_corruption = drift.get("corruption_type", "")
+
     md = f"""# Auto Incident Report
 
 - Workflow: `{data.get('workflow_name', '')}`
@@ -125,6 +133,9 @@ def main():
 - Slack thread_ts: `{slack_thread_ts}`
 - Mapping source: `{mapping_source}`
 - Mapping lock: `{mapping_lock}`
+- Drift level: `{drift_level}`
+- Drift action: `{drift_action}`
+- Drift reason: `{drift_reason}`
 
 ## Summary
 {data.get('summary', '')}
@@ -160,6 +171,11 @@ def main():
 - Slack thread creation must read issue mapping first
 - Memory file is a cache only; do not treat it as lock source
 
+## Drift Policy
+- `safe_auto_fix` → repaired automatically; no further action needed
+- `needs_retry` → transient external lookup failure; retry sync/reconcile steps
+- `needs_human_review` → multi-source state corruption; escalate to SRE
+
 ## Ranked Causes
 {ranked_lines}
 
@@ -185,6 +201,9 @@ def main():
 
     if storm_active:
         md += f"\n## Storm Control\n- Parent incident mode enabled\n- Reason: `{storm_reason}`\n"
+
+    if drift_corruption:
+        md += f"\n## State Corruption\n- Corruption type: `{drift_corruption}`\n"
 
     md += f"""
 ## Linked Resources (Primary)

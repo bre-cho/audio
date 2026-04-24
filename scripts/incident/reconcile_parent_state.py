@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """
-reconcile_parent_state.py — v15
+reconcile_parent_state.py — v16
 
-STATE RECONCILER: aligns three sources of truth into one consistent state.
+STATE RECONCILER + DRIFT DETECTOR: aligns three sources of truth into one
+consistent state, then classifies any remaining drift and drives the repair
+policy (auto-fix / retry / escalate).
 
 Priority order (highest → lowest):
   1. GitHub Issue INCIDENT_MAP marker  — authoritative
   2. Slack thread (external synced object)
   3. Classification JSON               — working copy
 
-Rules:
-  - JSON field conflicts with issue marker  → issue wins, JSON is corrected.
-  - Issue has thread_ts, JSON does not     → JSON is hydrated from issue.
-  - JSON has thread_ts, issue does not     → thread_ts is written back to issue.
-  - Records all changes and conflicts in reconciliation summary.
+Drift levels:
+  - none              → all sources already aligned
+  - safe_auto_fix     → repaired automatically; no further action needed
+  - needs_retry       → transient external lookup failure; retry sync
+  - needs_human_review→ multi-source state corruption; escalate
 """
 import argparse
 import json
@@ -102,6 +104,49 @@ def verify_slack_thread(token: str, channel: str, thread_ts: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# drift classifier
+# ---------------------------------------------------------------------------
+
+_TRANSIENT_CONFLICTS = {"slack_thread_lookup_failed", "slack_thread_unreadable"}
+
+
+def classify_drift(conflicts: list, changed: list) -> dict:
+    """Return drift level, action, and reason given reconciliation results."""
+    conflict_set = set(conflicts)
+    if not conflicts:
+        if changed:
+            return {
+                "level": "safe_auto_fix",
+                "action": "auto_repaired",
+                "reason": "state_aligned_to_issue",
+            }
+        return {"level": "none", "action": "none", "reason": ""}
+
+    if conflict_set <= _TRANSIENT_CONFLICTS:
+        return {"level": "needs_retry", "action": "retry_sync", "reason": "transient_external_lookup"}
+
+    if "multi_source_state_corruption" in conflict_set:
+        return {
+            "level": "needs_human_review",
+            "action": "escalate_corruption",
+            "reason": "state_diverged",
+            "corruption_type": "cross-system-parent-mapping-divergence",
+        }
+
+    if any(
+        "issue.marker<-json.slack_mapping" in x or "json.slack_thread_ts<-issue" in x
+        for x in changed
+    ):
+        return {
+            "level": "safe_auto_fix",
+            "action": "auto_repaired",
+            "reason": "mapping_repaired",
+        }
+
+    return {"level": "needs_human_review", "action": "escalate_corruption", "reason": "state_diverged"}
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 
@@ -148,11 +193,21 @@ def main() -> None:
     json_thread = parent.get("slack_thread_ts")
     json_channel = parent.get("slack_channel_id")
 
-    # ── 2. Reconcile JSON ← Issue (issue wins on conflict) ───────────────────
+    # ── 2. Detect heavy mismatches (before repair) ───────────────────────────
+    if issue and parent.get("issue_url") and parent.get("issue_url") != issue.get("html_url"):
+        reconciled["conflicts"].append("issue_url_mismatch")
+
+    if issue_thread and json_thread and issue_thread != json_thread:
+        reconciled["conflicts"].append("slack_thread_ts_mismatch")
+
+    if (
+        "issue_url_mismatch" in reconciled["conflicts"]
+        and "slack_thread_ts_mismatch" in reconciled["conflicts"]
+    ):
+        reconciled["conflicts"].append("multi_source_state_corruption")
+
+    # ── 3. Reconcile JSON ← Issue (issue wins on conflict) ───────────────────
     if issue_thread and json_thread and json_thread != issue_thread:
-        reconciled["conflicts"].append(
-            f"slack_thread_ts: json={json_thread} issue={issue_thread} → issue wins"
-        )
         parent["slack_thread_ts"] = issue_thread
         reconciled["changed"].append("json.slack_thread_ts<-issue")
 
@@ -161,9 +216,6 @@ def main() -> None:
         reconciled["changed"].append("json.slack_thread_ts<-issue")
 
     if issue_channel and json_channel and json_channel != issue_channel:
-        reconciled["conflicts"].append(
-            f"slack_channel_id: json={json_channel} issue={issue_channel} → issue wins"
-        )
         parent["slack_channel_id"] = issue_channel
         reconciled["changed"].append("json.slack_channel_id<-issue")
 
@@ -171,9 +223,8 @@ def main() -> None:
         parent["slack_channel_id"] = issue_channel
         reconciled["changed"].append("json.slack_channel_id<-issue")
 
-    # ── 3. Reconcile Issue ← JSON (write-back when issue marker is missing) ──
+    # ── 4. Reconcile Issue ← JSON (write-back when issue marker is missing) ──
     if not issue_thread and json_thread and issue and gtoken:
-        # Optionally verify the Slack thread still exists before writing back
         thread_ok = verify_slack_thread(stoken, json_channel or "", json_thread)
         if thread_ok or not stoken:
             imap["slack_thread_ts"] = json_thread
@@ -191,13 +242,34 @@ def main() -> None:
                 gtoken,
                 {"body": new_body},
             )
-            reconciled["changed"].append("issue.slack_thread_ts<-json")
+            reconciled["changed"].append("issue.marker<-json.slack_mapping")
         else:
-            reconciled["conflicts"].append(
-                f"json has thread_ts={json_thread} but Slack verification failed; skipping write-back"
-            )
+            reconciled["conflicts"].append("slack_thread_lookup_failed")
 
-    # ── 4. Stamp reconciliation metadata in classification ───────────────────
+    # ── 5. Classify drift ────────────────────────────────────────────────────
+    drift = classify_drift(reconciled["conflicts"], reconciled["changed"])
+    reconciled["drift"] = drift
+    reconciled["retry_once"] = 1 if drift["level"] == "needs_retry" else 0
+
+    # Determine reconciliation status
+    if not reconciled["conflicts"] and reconciled["changed"]:
+        reconciled["status"] = "healed"
+    elif not reconciled["conflicts"] and not reconciled["changed"]:
+        reconciled["status"] = "aligned"
+    else:
+        reconciled["status"] = "conflict"
+
+    # ── 6. Apply policy side-effects ─────────────────────────────────────────
+    if drift["level"] == "needs_human_review":
+        esc = data.setdefault("escalation", {})
+        current_sev = esc.get("severity", "P2")
+        if current_sev == "P2":
+            esc["severity"] = "P1"
+        esc["mention_team"] = "sre"
+        if "corruption_type" in drift:
+            reconciled["drift"]["corruption_type"] = drift["corruption_type"]
+
+    # ── 7. Stamp reconciliation metadata ─────────────────────────────────────
     parent["mapping_source"] = "github_issue"
     parent["mapping_lock"] = "authoritative"
     parent["reconcile_changed"] = reconciled["changed"]
@@ -205,6 +277,7 @@ def main() -> None:
 
     data["parent_incident"] = parent
     data["child_incident"] = child
+    data["state_reconciler"] = reconciled
     cpath.write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(json.dumps(reconciled, indent=2))
 
