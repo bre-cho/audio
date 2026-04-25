@@ -55,8 +55,11 @@ PROJECT_ID=$(printf '%s' "$project_resp" | json_get id)
 [[ -n "$PROJECT_ID" && "$PROJECT_ID" != "null" ]] && log "OK: project created $PROJECT_ID" || fail "project create failed"
 
 # List available voices from the voices endpoint
-voices_resp=$(curl -fsS "$BASE_URL/api/v1/voices" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
-log "OK: voices endpoint reachable"
+if curl -fsS "$BASE_URL/api/v1/voices" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" >> "$REPORT_FILE" 2>&1; then
+  log "OK: voices endpoint reachable"
+else
+  fail "voices endpoint unreachable"
+fi
 
 preview_body=$(printf '{"text":"preview test from ci","project_id":"%s"}' "$PROJECT_ID")
 preview_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/preview" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$preview_body" 2>>"$REPORT_FILE" || true)

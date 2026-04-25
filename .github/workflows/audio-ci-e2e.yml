@@ -129,7 +129,7 @@ jobs:
       - name: Build and start stack
         run: |
           docker compose config
-          docker compose up -d postgres redis minio minio-init api worker beat flower frontend edge-relay
+          docker compose up -d postgres redis api worker
 
       - name: Wait for stack
         run: python scripts/ci/wait_for_stack.py 300

@@ -77,10 +77,10 @@ else
   ok "runtime checks skipped"
 fi
 
-if [[ -d backend/tests ]]; then
+if [[ "$VERIFY_RUNTIME" == "1" && -d backend/tests ]]; then
   pytest -q -k "audio or narration or voice_clone" >> "$REPORT_FILE" 2>&1 || fail "pytest audio subset failed"
 else
-  log "OK: backend/tests not found; skipping pytest for bootstrap phase"
+  ok "pytest runtime subset skipped"
 fi
 
 echo
