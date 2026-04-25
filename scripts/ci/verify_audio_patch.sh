@@ -18,6 +18,8 @@ log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; FAILED=$((FAILED+1)); }
 ok(){ log "OK: $*"; }
 
+VERIFY_RUNTIME="${VERIFY_RUNTIME:-1}"
+
 python -m compileall backend/app >> "$REPORT_FILE" 2>&1 || fail "compileall failed"
 if PYTHONPATH=backend python - <<'PY' >> "$REPORT_FILE" 2>&1
 import importlib
@@ -46,30 +48,34 @@ fi
 grep -R "combined_audio += audio_bytes" backend/app/services/audio -n >> "$REPORT_FILE" 2>&1 && fail "legacy byte-concat merge still present" || ok "legacy byte-concat merge absent"
 grep -R "ElevenLabsAdapter()" backend/app/api backend/app/services/audio -n >> "$REPORT_FILE" 2>&1 && fail "hardcoded ElevenLabsAdapter still present" || ok "no hardcoded ElevenLabsAdapter in audio route/service"
 
-SKIP_STACK_UP="${SKIP_STACK_UP:-0}"
+if [[ "$VERIFY_RUNTIME" == "1" ]]; then
+  SKIP_STACK_UP="${SKIP_STACK_UP:-0}"
 
-if [[ "$SKIP_STACK_UP" != "1" ]]; then
-  $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 \
-    || fail "docker compose up failed"
+  if [[ "$SKIP_STACK_UP" != "1" ]]; then
+    $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 \
+      || fail "docker compose up failed"
 
-  python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 \
-    || fail "stack not healthy"
+    python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 \
+      || fail "stack not healthy"
+  else
+    ok "skip stack up"
+  fi
+
+  $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api container"
+  $DOCKER_COMPOSE_BIN logs --tail=100 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
+  $DOCKER_COMPOSE_BIN logs --tail=100 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
+
+  mkdir -p artifacts/audio
+  printf "probe" > artifacts/audio/static-probe.txt
+  if curl -fsSI "$BASE_URL/artifacts/audio/static-probe.txt" >> "$REPORT_FILE" 2>&1; then
+    ok "artifacts static route reachable"
+  else
+    fail "artifacts static route reachable"
+  fi
+  rm -f artifacts/audio/static-probe.txt
 else
-  ok "Skip stack up"
+  ok "runtime checks skipped"
 fi
-
-$DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api container"
-$DOCKER_COMPOSE_BIN logs --tail=100 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
-$DOCKER_COMPOSE_BIN logs --tail=100 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
-
-mkdir -p artifacts/audio
-printf "probe" > artifacts/audio/static-probe.txt
-if curl -fsSI "$BASE_URL/artifacts/audio/static-probe.txt" >> "$REPORT_FILE" 2>&1; then
-  ok "artifacts static route reachable"
-else
-  fail "artifacts static route reachable"
-fi
-rm -f artifacts/audio/static-probe.txt
 
 if [[ -d backend/tests ]]; then
   pytest -q -k "audio or narration or voice_clone" >> "$REPORT_FILE" 2>&1 || fail "pytest audio subset failed"
