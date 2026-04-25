@@ -22,6 +22,8 @@ AUTH_ARGS=()
 PROJECT_ID=""
 PREVIEW_JOB_ID=""
 NARRATION_JOB_ID=""
+PREVIEW_POLL_ATTEMPTS="${PREVIEW_POLL_ATTEMPTS:-40}"
+NARRATION_POLL_ATTEMPTS="${NARRATION_POLL_ATTEMPTS:-12}"
 
 log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; pass=false; }
@@ -74,7 +76,7 @@ NARRATION_JOB_ID=$(printf '%s' "$narration_resp" | json_get id)
 # Poll preview job and verify artifact contract (preview_url / output_url)
 if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
   status=""
-  for _ in {1..40}; do
+  for _ in $(seq 1 "$PREVIEW_POLL_ATTEMPTS"); do
     sleep 5
     job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$PREVIEW_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
     printf '%s' "$job_resp" > /tmp/audio_preview_job_status.json
@@ -137,7 +139,7 @@ fi
 # Poll narration job — only verify it reaches succeeded state
 if [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
   status=""
-  for _ in {1..40}; do
+  for _ in $(seq 1 "$NARRATION_POLL_ATTEMPTS"); do
     sleep 5
     job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$NARRATION_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
     printf '%s' "$job_resp" > /tmp/audio_narration_job_status.json
