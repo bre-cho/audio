@@ -30,11 +30,30 @@ RUN_NARRATION_E2E="${RUN_NARRATION_E2E:-0}"
 
 log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; pass=false; }
-json_get(){ python -c 'import json,sys; data=json.load(sys.stdin); cur=data
-for p in sys.argv[1].split("."):
-    if isinstance(cur, dict): cur=cur.get(p)
-    else: cur=None
-print("" if cur is None else cur)' "$1"; }
+json_get() {
+  python - "$1" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print("")
+    sys.exit(0)
+
+cur = data
+for part in path.split("."):
+    if isinstance(cur, dict):
+        cur = cur.get(part)
+    else:
+        cur = None
+        break
+
+print("" if cur is None else cur)
+PY
+}
 
 SKIP_STACK_UP="${SKIP_STACK_UP:-0}"
 if [[ "$SKIP_STACK_UP" != "1" ]]; then
@@ -90,8 +109,14 @@ fi
 
 preview_body=$(printf '{"text":"preview test from ci","project_id":"%s"}' "$PROJECT_ID")
 preview_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/preview" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$preview_body" 2>>"$REPORT_FILE" || true)
+PREVIEW_CREATE_JSON="$preview_resp"
 PREVIEW_JOB_ID=$(printf '%s' "$preview_resp" | json_get id)
-[[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]] && log "OK: preview job created $PREVIEW_JOB_ID" || fail "preview job id missing"
+if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
+  log "OK: preview job created $PREVIEW_JOB_ID"
+else
+  printf '%s' "$PREVIEW_CREATE_JSON" >> "$REPORT_FILE"
+  fail "preview job_id missing"
+fi
 
 if [[ "$RUN_NARRATION_E2E" == "1" ]]; then
   narration_body=$(printf '{"project_id":"%s","text":"segment one. segment two. segment three."}' "$PROJECT_ID")

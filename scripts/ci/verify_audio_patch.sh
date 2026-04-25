@@ -45,7 +45,13 @@ else
   fail "audio modules import"
 fi
 
-grep -R "combined_audio += audio_bytes" backend/app/services/audio -n >> "$REPORT_FILE" 2>&1 && fail "legacy byte-concat merge still present" || ok "legacy byte-concat merge absent"
+if [[ -d backend/app/services/audio ]]; then
+  grep -R "combined_audio += audio_bytes" backend/app/services/audio -n > "$REPORT_FILE" 2>&1 \
+    && fail "legacy byte-concat merge still present" \
+    || ok "legacy byte-concat merge absent"
+else
+  ok "audio services folder absent"
+fi
 grep -R "ElevenLabsAdapter()" backend/app/api backend/app/services/audio -n >> "$REPORT_FILE" 2>&1 && fail "hardcoded ElevenLabsAdapter still present" || ok "no hardcoded ElevenLabsAdapter in audio route/service"
 
 if [[ "$VERIFY_RUNTIME" == "1" ]]; then
