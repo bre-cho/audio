@@ -70,7 +70,7 @@ if [[ "$VERIFY_RUNTIME" == "1" ]]; then
   if curl -fsSI "$BASE_URL/artifacts/audio/static-probe.txt" >> "$REPORT_FILE" 2>&1; then
     ok "artifacts static route reachable"
   else
-    fail "artifacts static route reachable"
+    fail "artifacts static route unreachable"
   fi
   rm -f artifacts/audio/static-probe.txt
 else
