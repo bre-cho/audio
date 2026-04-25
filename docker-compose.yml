@@ -92,7 +92,7 @@ services:
       ARTIFACT_ROOT: /artifacts
     volumes:
       - ./artifacts:/artifacts
-    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q default,audio
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q audio
 
   beat:
     build:

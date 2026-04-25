@@ -62,7 +62,7 @@ if [[ "$VERIFY_RUNTIME" == "1" ]]; then
     || fail "stack not healthy"
 
   if $DOCKER_COMPOSE_BIN exec -T "$WORKER_SERVICE" celery \
-    -A app.workers.celery_app.celery_app inspect ping >> "$REPORT_FILE" 2>&1
+    -A app.workers.celery_app.celery_app inspect ping --timeout=10 >> "$REPORT_FILE" 2>&1
   then
     ok "celery worker ready"
   else
