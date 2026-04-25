@@ -6,15 +6,40 @@ cd "$ROOT_DIR"
 
 API_SERVICE="${API_SERVICE:-api}"
 WORKER_SERVICE="${WORKER_SERVICE:-worker}"
-DOCKER_COMPOSE_BIN="${DOCKER_COMPOSE_BIN:-docker compose}"
+DOCKER_COMPOSE_BIN="${DOCKER_COMPOSE_BIN:-}"
 OUT_DIR="artifacts/audio-ci"
 mkdir -p "$OUT_DIR"
 
-$DOCKER_COMPOSE_BIN ps -a > "$OUT_DIR/docker-compose-ps.txt" 2>&1 || true
-$DOCKER_COMPOSE_BIN logs --no-color --tail=400 "$API_SERVICE" > "$OUT_DIR/api.log" 2>&1 || true
-$DOCKER_COMPOSE_BIN logs --no-color --tail=400 "$WORKER_SERVICE" > "$OUT_DIR/worker.log" 2>&1 || true
-$DOCKER_COMPOSE_BIN logs --no-color --tail=200 frontend > "$OUT_DIR/frontend.log" 2>&1 || true
-$DOCKER_COMPOSE_BIN logs --no-color --tail=200 edge-relay > "$OUT_DIR/edge-relay.log" 2>&1 || true
+resolve_compose_cmd() {
+  if [[ -n "$DOCKER_COMPOSE_BIN" ]]; then
+    # shellcheck disable=SC2206
+    COMPOSE_CMD=($DOCKER_COMPOSE_BIN)
+    return
+  fi
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker compose)
+    return
+  fi
+  if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker-compose)
+    return
+  fi
+  echo "WARNING: docker compose not found; skipping container log collection" >&2
+  COMPOSE_CMD=()
+}
+
+dc() {
+  if [[ "${#COMPOSE_CMD[@]}" -eq 0 ]]; then return 0; fi
+  "${COMPOSE_CMD[@]}" "$@"
+}
+
+resolve_compose_cmd
+
+dc ps -a > "$OUT_DIR/docker-compose-ps.txt" 2>&1 || true
+dc logs --no-color --tail=400 "$API_SERVICE" > "$OUT_DIR/api.log" 2>&1 || true
+dc logs --no-color --tail=400 "$WORKER_SERVICE" > "$OUT_DIR/worker.log" 2>&1 || true
+dc logs --no-color --tail=200 frontend > "$OUT_DIR/frontend.log" 2>&1 || true
+dc logs --no-color --tail=200 edge-relay > "$OUT_DIR/edge-relay.log" 2>&1 || true
 
 if [[ -f .verify_audio_patch/report.txt ]]; then cp .verify_audio_patch/report.txt "$OUT_DIR/verify_audio_patch_report.txt"; fi
 if [[ -f .verify_audio_e2e/report.txt ]]; then cp .verify_audio_e2e/report.txt "$OUT_DIR/verify_audio_e2e_report.txt"; fi

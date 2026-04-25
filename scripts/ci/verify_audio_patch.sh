@@ -16,6 +16,7 @@ REPORT_FILE="$REPORT_DIR/report.txt"
 FAILED=0
 BASE_URL="${BASE_URL:-http://localhost:8000}"
 VERIFY_RUNTIME="${VERIFY_RUNTIME:-1}"
+ARTIFACT_ROOT_HOST="${ARTIFACT_ROOT:-${ROOT_DIR}/artifacts}"
 
 log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; FAILED=$((FAILED+1)); }
@@ -167,14 +168,14 @@ PY_SCHEMA
   dc logs --tail=100 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
   dc logs --tail=100 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
 
-  mkdir -p artifacts/audio
-  printf "probe" > artifacts/audio/static-probe.txt
+  mkdir -p "${ARTIFACT_ROOT_HOST}/audio"
+  printf "probe" > "${ARTIFACT_ROOT_HOST}/audio/static-probe.txt"
   if curl -fsSI "$BASE_URL/artifacts/audio/static-probe.txt" >> "$REPORT_FILE" 2>&1; then
     ok "artifacts static route reachable"
   else
     fail "artifacts static route unreachable"
   fi
-  rm -f artifacts/audio/static-probe.txt
+  rm -f "${ARTIFACT_ROOT_HOST}/audio/static-probe.txt"
 else
   ok "runtime checks skipped"
 fi
