@@ -16,7 +16,6 @@ on:
     paths:
       - 'backend/app/api/audio.py'
       - 'backend/app/services/audio/**'
-      - 'backend/app/workers/**audio**'
       - 'backend/app/workers/audio_tasks.py'
       - 'backend/app/workers/clone_tasks.py'
       - 'backend/app/models/voice_*.py'
