@@ -8,7 +8,7 @@ cd "$ROOT_DIR"
 BASE_URL="${BASE_URL:-http://localhost:8000}"
 API_SERVICE="${API_SERVICE:-api}"
 WORKER_SERVICE="${WORKER_SERVICE:-worker}"
-DOCKER_COMPOSE_BIN="${DOCKER_COMPOSE_BIN:-docker compose}"
+DOCKER_COMPOSE_BIN="${DOCKER_COMPOSE_BIN:-}"
 AUTH_ENABLED="${AUTH_ENABLED:-0}"
 AUTH_EMAIL="${AUTH_EMAIL:-}"
 AUTH_PASSWORD="${AUTH_PASSWORD:-}"
@@ -32,6 +32,28 @@ log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; pass=false; }
 ok(){ log "OK: $*"; }
 trap 'fail "fatal error near line $LINENO"' ERR
+
+resolve_compose_cmd() {
+  if [[ -n "$DOCKER_COMPOSE_BIN" ]]; then
+    # shellcheck disable=SC2206
+    COMPOSE_CMD=($DOCKER_COMPOSE_BIN)
+    return
+  fi
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker compose)
+    return
+  fi
+  if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker-compose)
+    return
+  fi
+  fail "docker compose command not found"
+  exit 1
+}
+
+dc() {
+  "${COMPOSE_CMD[@]}" "$@"
+}
 
 json_get() {
   local path="$1"
@@ -115,6 +137,24 @@ assert_artifact_contract() {
   local url
   url="$(printf '%s' "$artifact" | json_get url)"
   assert_http_head_audio "$url" "$prefix"
+  assert_artifact_body_integrity "$artifact" "$prefix"
+}
+
+assert_artifact_body_integrity() {
+  local artifact="$1"; local label="$2"
+  local url checksum expected_size tmp actual_checksum actual_size
+  url="$(printf '%s' "$artifact" | json_get url)"
+  checksum="$(printf '%s' "$artifact" | json_get checksum)"
+  expected_size="$(printf '%s' "$artifact" | json_get size_bytes)"
+  tmp="$REPORT_DIR/${label}_artifact.bin"
+  if ! curl -fsS "$BASE_URL$url" -o "$tmp" 2>>"$REPORT_FILE"; then
+    fail "$label artifact download failed: $url"
+    return
+  fi
+  actual_size="$(wc -c < "$tmp" | tr -d ' ')"
+  actual_checksum="$(sha256sum "$tmp" | awk '{print $1}')"
+  [[ "$actual_size" == "$expected_size" ]] && ok "$label artifact downloaded size matches contract" || fail "$label artifact size mismatch: expected=$expected_size actual=$actual_size"
+  [[ "$actual_checksum" == "$checksum" ]] && ok "$label artifact sha256 matches contract" || fail "$label artifact checksum mismatch"
 }
 
 assert_job_artifacts() {
@@ -132,14 +172,15 @@ assert_job_artifacts() {
 }
 
 SKIP_STACK_UP="${SKIP_STACK_UP:-0}"
+resolve_compose_cmd
 if [[ "$SKIP_STACK_UP" != "1" ]]; then
-  $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 || fail "docker compose up failed"
+  dc up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 || fail "docker compose up failed"
 else
   ok "skip stack up"
 fi
 python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 || fail "stack not healthy"
 
-if $DOCKER_COMPOSE_BIN exec -T "$WORKER_SERVICE" celery \
+if dc exec -T "$WORKER_SERVICE" celery \
   -A app.workers.celery_app.celery_app inspect ping --timeout=10 >> "$REPORT_FILE" 2>&1
 then
   ok "celery worker ready"
@@ -147,7 +188,7 @@ else
   fail "celery worker not ready"
 fi
 
-if $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" python - <<'PY_SCHEMA' >> "$REPORT_FILE" 2>&1
+if dc exec -T "$API_SERVICE" python - <<'PY_SCHEMA' >> "$REPORT_FILE" 2>&1
 import app.models  # noqa: F401
 from app.db.base import Base
 from app.db.session import engine
@@ -159,7 +200,7 @@ then
 else
   fail "schema bootstrap guard"
 fi
-$DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api"
+dc exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api"
 
 if [[ "$AUTH_ENABLED" == "1" ]]; then
   login_body=$(printf '{"email":"%s","password":"%s"}' "$AUTH_EMAIL" "$AUTH_PASSWORD")

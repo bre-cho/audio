@@ -140,11 +140,16 @@ def write_audio_artifacts(job_id: str, request_json: dict[str, Any] | None = Non
     }
 
 
-def write_clone_preview_artifact(job_id: str, request_json: dict[str, Any] | None = None) -> str:
+def write_clone_preview_artifact(job_id: str, request_json: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Write clone preview using the same artifact contract as tts/narration."""
     artifact = _create_artifact(
         job_id=job_id,
         suffix="clone_preview",
         output_type="clone_preview",
         request_json=request_json,
     )
-    return artifact["url"]
+    return {
+        "preview_url": artifact["url"],
+        "artifacts": [artifact],
+        "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
+    }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -48,7 +49,7 @@ class StorageService:
 
         path = self._resolve_path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f".{path.name}.tmp")
+        tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
         tmp_path.write_bytes(bytes(data))
 
         expected_size = len(data)
