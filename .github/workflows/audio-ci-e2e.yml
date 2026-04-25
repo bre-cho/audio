@@ -81,6 +81,7 @@ jobs:
       API_SERVICE: api
       WORKER_SERVICE: worker
       DOCKER_COMPOSE_BIN: docker compose
+      SKIP_STACK_UP: "1"
       AUTH_ENABLED: ${{ github.event.inputs.auth_enabled || '0' }}
       AUTH_EMAIL: ${{ secrets.AUDIO_E2E_EMAIL }}
       AUTH_PASSWORD: ${{ secrets.AUDIO_E2E_PASSWORD }}
