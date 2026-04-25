@@ -168,9 +168,14 @@ def process_tts_job(self, job_id: str) -> dict:
 def process_conversation_job(self, job_id: str) -> dict:
     try:
         _update_job(job_id, status="processing", started_at=datetime.now(UTC))
-        runtime = {"provider": "internal"}
-        _update_job(job_id, status="succeeded", runtime_json=runtime, finished_at=datetime.now(UTC))
-        return {"job_id": job_id, "status": "succeeded"}
+        snapshot = _get_job_snapshot(job_id) or {"request_json": {}}
+        result = write_audio_artifacts(job_id, request_json=snapshot.get("request_json") or {})
+        _mark_job_succeeded_with_artifacts(
+            job_id,
+            result=result,
+            promotion_reason="conversation artifacts passed write-time storage integrity and contract validation; advanced gates pending",
+        )
+        return {"job_id": job_id, "status": "succeeded", **result}
     except Exception as exc:
         logger.exception("Audio task failed for %s", job_id)
         if _should_fail_task(self):
