@@ -111,17 +111,22 @@ jobs:
             *.cache-to=type=gha,mode=max
 
       - name: Start services
-        run: docker compose up -d postgres redis minio minio-init api worker beat flower frontend edge-relay
+        run: docker compose up -d postgres redis api worker
 
       - name: Wait for healthchecks
         run: python scripts/ci/wait_for_stack.py 300
 
       - name: Verify audio patch
+        env:
+          SKIP_STACK_UP: "1"
+          VERIFY_RUNTIME: "1"
         run: |
           chmod +x scripts/ci/verify_audio_patch.sh scripts/ci/verify_audio_e2e.sh
           bash scripts/ci/verify_audio_patch.sh
 
       - name: Verify audio E2E
+        env:
+          SKIP_STACK_UP: "1"
         run: bash scripts/ci/verify_audio_e2e.sh
 
       - name: Upload audio gate artifacts
