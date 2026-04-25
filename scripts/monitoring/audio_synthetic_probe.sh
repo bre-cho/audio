@@ -42,7 +42,7 @@ fi
 
 NARRATION_PAYLOAD=$(python3 - <<PY
 import json
-print(json.dumps({"text": "${SAMPLE_TEXT}", "voice_profile_id": "synthetic-default", "project_id": "synthetic-monitor"}))
+print(json.dumps({"text": "${SAMPLE_TEXT}", "voice_profile_id": "synthetic-default"}))
 PY
 )
 NARRATION_HTTP=$(curl -sS -m "$TIMEOUT_SECONDS" -o "$REPORT_DIR/narration.json" -w '%{http_code}' -X POST "$BASE_URL/api/v1/audio/narration" -H 'Content-Type: application/json' "${AUTH_HEADERS[@]}" -d "$NARRATION_PAYLOAD" || true)
