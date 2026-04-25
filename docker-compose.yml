@@ -124,3 +124,72 @@ services:
     image: nginx:alpine
     ports:
       - "8080:80"
+
+  # Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    depends_on:
+      - api
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.audio.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-storage:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:latest
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    volumes:
+      - ./infra/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-storage:/alertmanager
+    ports:
+      - "9093:9093"
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    ports:
+      - "9115:9115"
+    command:
+      - "--config.file=/etc/blackbox_exporter/config.yml"
+    volumes:
+      - ./infra/monitoring/blackbox:/etc/blackbox_exporter:ro
+
+volumes:
+  prometheus-storage:
+  grafana-storage:
+  alertmanager-storage:
