@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, computed_field
 class JobStatusOut(BaseModel):
     id: UUID
     job_type: str
+    idempotency_key: str | None = None
     status: Literal["queued", "processing", "retrying", "succeeded", "failed"]
     error_code: str | None = None
     error_message: str | None = None

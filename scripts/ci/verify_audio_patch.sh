@@ -83,6 +83,8 @@ assert_no_hardcoded_provider() {
 
 assert_contract_code_present() {
   assert_file_exists backend/app/services/audio_artifact_service.py
+  assert_file_exists backend/app/audio_factory/factory_executor.py
+  assert_file_exists backend/app/audio_factory/artifact_persistence.py
   grep -q "artifact_contract_version" backend/app/services/audio_artifact_service.py \
     && ok "artifact contract writer present" \
     || fail "artifact contract writer missing"
@@ -95,15 +97,19 @@ assert_contract_code_present() {
   grep -q "StorageService" backend/app/services/audio_artifact_service.py \
     && ok "artifact writer uses StorageService" \
     || fail "artifact writer bypasses StorageService"
-  grep -q "_persist_audio_outputs" backend/app/workers/audio_tasks.py \
-    && ok "audio output DB persistence present" \
-    || fail "audio output DB persistence missing"
+  grep -q "AudioFactoryExecutor" backend/app/workers/audio_tasks.py \
+    && ok "audio output DB persistence delegated to factory executor" \
+    || fail "audio output DB persistence delegation missing"
+  grep -q "workflow_type" backend/app/models/audio_job.py \
+    && ok "workflow_type persisted on audio jobs" \
+    || fail "workflow_type missing on audio jobs"
   grep -q "contract_verified" backend/app/workers/audio_tasks.py \
     && ok "truthful contract status present" \
     || fail "truthful contract status missing"
 }
 
 run "compile backend" python -m compileall backend/app
+run "compile repo scripts" python -m compileall scripts
 
 if timeout "${VERIFY_IMPORT_TIMEOUT:-45s}" env PYTHONPATH=backend python - <<'PY_IMPORTS' >> "$REPORT_FILE" 2>&1
 import importlib
@@ -151,17 +157,18 @@ if [[ "$VERIFY_RUNTIME" == "1" ]]; then
     fail "celery worker not ready"
   fi
 
-  if dc exec -T "$API_SERVICE" python - <<'PY_SCHEMA' >> "$REPORT_FILE" 2>&1
-import app.models  # noqa: F401
-from app.db.base import Base
-from app.db.session import engine
-Base.metadata.create_all(bind=engine)
-print("OK schema bootstrap")
-PY_SCHEMA
+  if DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai}" PYTHONPATH=backend python scripts/migrations/audio_factory_schema.py >> "$REPORT_FILE" 2>&1
   then
-    ok "schema bootstrap guard"
+    ok "audio factory schema migration"
   else
-    fail "schema bootstrap guard"
+    fail "audio factory schema migration"
+  fi
+
+  if DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai}" PYTHONPATH=backend python scripts/ci/audio_schema_guard.py >> "$REPORT_FILE" 2>&1
+  then
+    ok "audio factory schema guard"
+  else
+    fail "audio factory schema guard"
   fi
 
   run "ffmpeg present" dc exec -T "$API_SERVICE" ffmpeg -version
@@ -183,6 +190,7 @@ fi
 if [[ "$VERIFY_RUNTIME" == "1" && -d backend/tests ]]; then
   PYTHONPATH=backend pytest \
     backend/tests/test_audio_regression_guard.py \
+    backend/tests/test_audio_route_task_mapping.py \
     backend/tests/test_audio_worker_artifact_guard.py \
     backend/tests/test_worker_retry_state_semantics.py \
     -q >> "$REPORT_FILE" 2>&1 \

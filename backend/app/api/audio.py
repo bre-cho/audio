@@ -1,12 +1,13 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.audio_factory.task_mapper import build_audio_narration_task, build_audio_preview_task
 from app.models.audio_job import AudioJob
 from app.repositories.job_repo import JobRepository
 from app.schemas.job import JobStatusOut
@@ -68,23 +69,53 @@ def audio_health(db: Session = Depends(get_db)) -> dict:
 
 
 @router.post('/preview', response_model=JobStatusOut, status_code=201)
-def audio_preview(payload: AudioPreviewRequest, db: Session = Depends(get_db)) -> JobStatusOut:
+def audio_preview(
+    payload: AudioPreviewRequest,
+    db: Session = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias='Idempotency-Key'),
+) -> JobStatusOut:
     repo = JobRepository(db)
     default_user_id = uuid.UUID('00000000-0000-0000-0000-000000000001')
-    job = repo.create(user_id=default_user_id, job_type='tts_preview', request_json=payload.model_dump(mode='json'))
-    enqueue_tts_job(str(job.id))
+    task = build_audio_preview_task(
+        text=payload.text,
+        voice=payload.voice,
+        provider=payload.provider,
+        voice_id=payload.voice_profile_id,
+    )
+    job, created = repo.create_or_get(
+        user_id=default_user_id,
+        job_type='tts_preview',
+        workflow_type=task.workflow_type.value,
+        request_json=task.request_json,
+        idempotency_key=idempotency_key,
+    )
+    if created:
+        enqueue_tts_job(str(job.id))
     return JobStatusOut.model_validate(job)
 
 
 @router.post('/narration', response_model=JobStatusOut, status_code=202)
-def audio_narration(payload: AudioNarrationRequest, db: Session = Depends(get_db)) -> JobStatusOut:
+def audio_narration(
+    payload: AudioNarrationRequest,
+    db: Session = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias='Idempotency-Key'),
+) -> JobStatusOut:
     repo = JobRepository(db)
     default_user_id = uuid.UUID('00000000-0000-0000-0000-000000000001')
-    job = repo.create(
+    task = build_audio_narration_task(
+        text=payload.text,
+        voice_profile_id=payload.voice_profile_id,
+        provider=payload.provider,
+        project_id=payload.project_id,
+    )
+    job, created = repo.create_or_get(
         user_id=default_user_id,
         job_type='narration',
-        request_json=payload.model_dump(mode='json'),
+        workflow_type=task.workflow_type.value,
+        request_json=task.request_json,
         project_id=uuid.UUID(payload.project_id) if payload.project_id else None,
+        idempotency_key=idempotency_key,
     )
-    enqueue_batch_job(str(job.id))
+    if created:
+        enqueue_batch_job(str(job.id))
     return JobStatusOut.model_validate(job)

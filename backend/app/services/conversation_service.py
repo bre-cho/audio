@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy.orm import Session
+from app.audio_factory.schemas import AudioTaskRequest
 from app.repositories.job_repo import JobRepository
 from app.schemas.conversation import ConversationGenerateRequest, ConversationParseRequest, ConversationParseResponse, ConversationLine
 from app.schemas.job import JobStatusOut
@@ -26,4 +27,22 @@ class ConversationService:
     def submit_generate(self, payload: ConversationGenerateRequest) -> JobStatusOut:
         job = self.jobs.create(user_id=self.default_user_id, job_type='conversation', request_json=payload.model_dump(mode='json'), project_id=payload.project_id)
         enqueue_conversation_job(str(job.id))
+        return JobStatusOut.model_validate(job)
+
+    def submit_generate_task(
+        self,
+        task: AudioTaskRequest,
+        project_id,
+        idempotency_key: str | None = None,
+    ) -> JobStatusOut:
+        job, created = self.jobs.create_or_get(
+            user_id=self.default_user_id,
+            job_type='conversation',
+            workflow_type=task.workflow_type.value,
+            request_json=task.request_json,
+            project_id=project_id,
+            idempotency_key=idempotency_key,
+        )
+        if created:
+            enqueue_conversation_job(str(job.id))
         return JobStatusOut.model_validate(job)

@@ -26,8 +26,23 @@ def create_app() -> FastAPI:
 
 app = create_app()
 
-if os.getenv("BACKEND_SCHEMA_BOOTSTRAP") == "metadata-create-all":
+bootstrap_mode = os.getenv("BACKEND_SCHEMA_BOOTSTRAP")
+
+if bootstrap_mode in {"metadata-create-all", "audio-factory-migrate"}:
     from app.db.base import Base
     from app.db.session import engine
     from app import models as _models  # noqa: F401 — register ORM models without shadowing `app`
+
     Base.metadata.create_all(bind=engine)
+
+    if bootstrap_mode == "audio-factory-migrate":
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        _alembic_ini = Path(__file__).resolve().parents[2] / "alembic.ini"
+        subprocess.run(
+            [sys.executable, "-m", "alembic", "-c", str(_alembic_ini), "upgrade", "head"],
+            cwd=str(Path(__file__).resolve().parents[2]),
+            check=True,
+        )

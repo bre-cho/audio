@@ -66,10 +66,14 @@ def test_audio_worker_creates_and_persists_contract_artifacts(db_session, tmp_pa
     for artifact in updated.runtime_json["artifacts"]:
         _assert_contract_metadata(artifact, expected_job_id=str(job.id), expected_type=artifact["artifact_type"])
         row = output_by_type[artifact["artifact_type"]]
+        assert row.artifact_id == artifact["artifact_id"]
+        assert row.artifact_type == artifact["artifact_type"]
+        assert row.source_job_id == job.id
         assert row.public_url == artifact["url"]
         assert row.storage_key == artifact["storage_key"]
         assert row.size_bytes == artifact["size_bytes"]
         assert row.checksum == artifact["checksum"]
+        assert row.promotion_status == "persisted"
         assert row.waveform_json["artifact_id"] == artifact["artifact_id"]
         assert Path(artifact["path"]).exists()
 
@@ -151,8 +155,12 @@ def test_clone_preview_worker_creates_and_persists_contract_artifact(db_session,
     assert Path(tmp_path / "audio" / f"{job.id}.clone_preview.wav").exists()
     assert len(outputs) == 1
     assert outputs[0].output_type == "clone_preview"
+    assert outputs[0].artifact_type == "clone_preview"
+    assert outputs[0].artifact_id == artifact["artifact_id"]
+    assert outputs[0].source_job_id == job.id
     assert outputs[0].public_url == artifact["url"]
     assert outputs[0].storage_key == artifact["storage_key"]
     assert outputs[0].size_bytes == artifact["size_bytes"]
     assert outputs[0].checksum == artifact["checksum"]
+    assert outputs[0].promotion_status == "persisted"
     assert outputs[0].waveform_json["artifact_id"] == artifact["artifact_id"]

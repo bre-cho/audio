@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +15,10 @@ from app.api.deps import get_db
 from app.core.config import settings
 from app.db.base import Base
 from app.main import create_app
+from app.models.audio_output import AudioOutput
+
+_BACKEND_DIR = Path(__file__).resolve().parents[1]
+_ALEMBIC_INI = _BACKEND_DIR / "alembic.ini"
 
 
 @pytest.fixture(scope="session")
@@ -21,7 +28,13 @@ def db_engine():
         pool_pre_ping=True,
         connect_args={"connect_timeout": 3},
     )
+    AudioOutput.__table__.drop(bind=engine, checkfirst=True)
     Base.metadata.create_all(bind=engine)
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "-c", str(_ALEMBIC_INI), "upgrade", "head"],
+        cwd=str(_BACKEND_DIR),
+        check=True,
+    )
     yield engine
     engine.dispose()
 

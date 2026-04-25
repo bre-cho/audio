@@ -5,6 +5,7 @@ on:
     paths:
       - "backend/**"
       - "scripts/ci/**"
+      - "scripts/migrations/**"
       - ".github/workflows/audio-master-verify.yml"
   workflow_dispatch:
 
@@ -44,20 +45,57 @@ jobs:
       - name: Compile backend
         run: |
           python -m compileall backend/app
+          python -m compileall scripts
       - name: Verify audio patch without runtime
         run: |
           VERIFY_RUNTIME=0 SKIP_STACK_UP=1 bash scripts/ci/verify_audio_patch.sh
-      - name: Build and start stack
+      - name: Bring up audio stack
         run: |
           docker compose config
           docker compose up -d postgres redis api worker
       - name: Wait for stack
-        run: python scripts/ci/wait_for_stack.py 300
+        run: |
+          python scripts/ci/wait_for_stack.py 300
+      - name: Migrate audio factory schema
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai
+          PYTHONPATH: backend
+        run: |
+          python scripts/migrations/audio_factory_schema.py
+      - name: Schema guard
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai
+          PYTHONPATH: backend
+        run: |
+          python scripts/ci/audio_schema_guard.py
       - name: Verify audio patch with runtime
         env:
-          SKIP_STACK_UP: "1"
-          VERIFY_RUNTIME: "1"
-        run: bash scripts/ci/verify_audio_patch.sh
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai
+          PYTHONPATH: backend
+        run: |
+          SKIP_STACK_UP=1 VERIFY_RUNTIME=1 bash scripts/ci/verify_audio_patch.sh
+      - name: E2E conversation
+        env:
+          REPORT_DIR: .audio_factory_report
+        run: |
+          python scripts/ci/e2e_conversation.py
+      - name: E2E clone preview
+        env:
+          REPORT_DIR: .audio_factory_report
+        run: |
+          python scripts/ci/e2e_clone_preview.py
+      - name: Artifact checksum verify
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai
+          PYTHONPATH: backend
+        run: |
+          python scripts/ci/artifact_checksum_verify.py
+      - name: Merge factory report
+        if: always()
+        env:
+          REPORT_DIR: .audio_factory_report
+        run: |
+          python scripts/ci/factory_report_merge.py
       - name: Audio end-to-end verify
         id: audio_e2e
         env:
@@ -78,4 +116,5 @@ jobs:
             .verify_audio_patch/report.txt
             .verify_audio_e2e/report.txt
             artifacts/audio-ci/**
+            .audio_factory_report/*.json
           if-no-files-found: ignore
