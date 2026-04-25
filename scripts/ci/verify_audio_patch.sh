@@ -61,6 +61,9 @@ if [[ "$VERIFY_RUNTIME" == "1" ]]; then
   python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 \
     || fail "stack not healthy"
 
+  $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" alembic upgrade head >> "$REPORT_FILE" 2>&1 \
+    || fail "alembic upgrade failed"
+
   $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api container"
   $DOCKER_COMPOSE_BIN logs --tail=100 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
   $DOCKER_COMPOSE_BIN logs --tail=100 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
