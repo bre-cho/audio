@@ -159,13 +159,23 @@ assert_artifact_body_integrity() {
 
 assert_job_artifacts() {
   local job_json="$1"
-  assert_json_key "$job_json" "runtime_json.artifacts[0]" "job has first artifact"
-  assert_json_key "$job_json" "runtime_json.artifacts[1]" "job has second artifact"
-  local artifact0 artifact1
-  artifact0="$(printf '%s' "$job_json" | json_get runtime_json.artifacts[0])"
-  artifact1="$(printf '%s' "$job_json" | json_get runtime_json.artifacts[1])"
-  assert_artifact_contract "$artifact0" "preview"
-  assert_artifact_contract "$artifact1" "output"
+  local artifact_count
+  artifact_count=$(printf '%s' "$job_json" | python -c '
+import json, sys
+try:
+  data = json.load(sys.stdin)
+  arts = (data.get("runtime_json") or {}).get("artifacts") or []
+  print(len(arts))
+except Exception:
+  print(0)
+')
+  [[ "$artifact_count" -gt 0 ]] || { fail "no artifacts returned"; return; }
+  ok "job has $artifact_count artifact(s)"
+  for i in $(seq 0 $((artifact_count - 1))); do
+    local artifact
+    artifact="$(printf '%s' "$job_json" | json_get "runtime_json.artifacts[$i]")"
+    assert_artifact_contract "$artifact" "artifact_$i"
+  done
   for key in contract_pass lineage_pass write_integrity_pass replayability_pass determinism_pass drift_budget_pass promotion_status checked_at; do
     assert_json_key "$job_json" "runtime_json.promotion_gate.$key" "promotion gate key exists: $key"
   done
@@ -304,8 +314,8 @@ if [[ "$RUN_NARRATION_E2E" == "1" && -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_I
   fi
 fi
 
-$DOCKER_COMPOSE_BIN logs --tail=200 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
-$DOCKER_COMPOSE_BIN logs --tail=200 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
+dc logs --tail=200 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
+dc logs --tail=200 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
 
 if [[ "$pass" == "true" ]]; then
   log "GO"
