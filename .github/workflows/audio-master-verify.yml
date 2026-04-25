@@ -11,6 +11,15 @@ on:
 jobs:
   master-verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
+      BASE_URL: http://localhost:8000
+      API_SERVICE: api
+      WORKER_SERVICE: worker
+      ARTIFACT_ROOT: ${{ github.workspace }}/artifacts
+
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -22,7 +31,12 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+          if [ -f backend/requirements-dev.txt ]; then pip install -r backend/requirements-dev.txt; fi
           pip install pytest
+      - name: Prepare env and permissions
+        run: |
+          mkdir -p artifacts/audio-ci
+          chmod +x scripts/ci/verify_audio_patch.sh scripts/ci/verify_audio_e2e.sh scripts/ci/audio_fail_safe.sh
       - name: Static verify scripts
         run: |
           bash -n scripts/ci/verify_audio_patch.sh
@@ -33,6 +47,28 @@ jobs:
       - name: Verify audio patch without runtime
         run: |
           VERIFY_RUNTIME=0 SKIP_STACK_UP=1 bash scripts/ci/verify_audio_patch.sh
+      - name: Build and start stack
+        run: |
+          docker compose config
+          docker compose up -d postgres redis api worker
+      - name: Wait for stack
+        run: python scripts/ci/wait_for_stack.py 300
+      - name: Verify audio patch with runtime
+        env:
+          SKIP_STACK_UP: "1"
+          VERIFY_RUNTIME: "1"
+        run: bash scripts/ci/verify_audio_patch.sh
+      - name: Audio end-to-end verify
+        id: audio_e2e
+        env:
+          SKIP_STACK_UP: "1"
+        run: bash scripts/ci/verify_audio_e2e.sh
+      - name: Collect fail-safe artifacts
+        if: always()
+        run: bash scripts/ci/audio_fail_safe.sh
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v
       - name: Upload verify report
         if: always()
         uses: actions/upload-artifact@v4
@@ -41,4 +77,5 @@ jobs:
           path: |
             .verify_audio_patch/report.txt
             .verify_audio_e2e/report.txt
+            artifacts/audio-ci/**
           if-no-files-found: ignore
