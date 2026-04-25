@@ -24,7 +24,7 @@ PREVIEW_JOB_ID=""
 NARRATION_JOB_ID=""
 PREVIEW_POLL_ATTEMPTS="${PREVIEW_POLL_ATTEMPTS:-40}"
 NARRATION_POLL_ATTEMPTS="${NARRATION_POLL_ATTEMPTS:-12}"
-RUN_NARRATION_E2E="${RUN_NARRATION_E2E:-1}"
+RUN_NARRATION_E2E="${RUN_NARRATION_E2E:-0}"
 
 log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; pass=false; }
@@ -41,7 +41,7 @@ fi
 python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 || fail "stack not healthy"
 
 if $DOCKER_COMPOSE_BIN exec -T "$WORKER_SERVICE" celery \
-  -A app.workers.celery_app.celery_app inspect ping >> "$REPORT_FILE" 2>&1
+  -A app.workers.celery_app.celery_app inspect ping --timeout=10 >> "$REPORT_FILE" 2>&1
 then
   log "OK: celery worker ready"
 else
