@@ -54,12 +54,12 @@ if [[ "$VERIFY_RUNTIME" == "1" ]]; then
   if [[ "$SKIP_STACK_UP" != "1" ]]; then
     $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 \
       || fail "docker compose up failed"
-
-    python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 \
-      || fail "stack not healthy"
   else
     ok "skip stack up"
   fi
+
+  python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 \
+    || fail "stack not healthy"
 
   $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api container"
   $DOCKER_COMPOSE_BIN logs --tail=100 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true

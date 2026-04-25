@@ -80,6 +80,11 @@ def audio_preview(payload: AudioPreviewRequest, db: Session = Depends(get_db)) -
 def audio_narration(payload: AudioNarrationRequest, db: Session = Depends(get_db)) -> JobStatusOut:
     repo = JobRepository(db)
     default_user_id = uuid.UUID('00000000-0000-0000-0000-000000000001')
-    job = repo.create(user_id=default_user_id, job_type='narration', request_json=payload.model_dump(mode='json'))
+    job = repo.create(
+        user_id=default_user_id,
+        job_type='narration',
+        request_json=payload.model_dump(mode='json'),
+        project_id=uuid.UUID(payload.project_id) if payload.project_id else None,
+    )
     enqueue_batch_job(str(job.id))
     return JobStatusOut.model_validate(job)
