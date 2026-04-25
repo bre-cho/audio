@@ -46,7 +46,18 @@ fi
 grep -R "combined_audio += audio_bytes" backend/app/services/audio -n >> "$REPORT_FILE" 2>&1 && fail "legacy byte-concat merge still present" || ok "legacy byte-concat merge absent"
 grep -R "ElevenLabsAdapter()" backend/app/api backend/app/services/audio -n >> "$REPORT_FILE" 2>&1 && fail "hardcoded ElevenLabsAdapter still present" || ok "no hardcoded ElevenLabsAdapter in audio route/service"
 
-$DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 || fail "docker compose up failed"
+SKIP_STACK_UP="${SKIP_STACK_UP:-0}"
+
+if [[ "$SKIP_STACK_UP" != "1" ]]; then
+  $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 \
+    || fail "docker compose up failed"
+
+  python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 \
+    || fail "stack not healthy"
+else
+  ok "Skip stack up"
+fi
+
 $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api container"
 $DOCKER_COMPOSE_BIN logs --tail=100 "$API_SERVICE" >> "$REPORT_FILE" 2>&1 || true
 $DOCKER_COMPOSE_BIN logs --tail=100 "$WORKER_SERVICE" >> "$REPORT_FILE" 2>&1 || true
