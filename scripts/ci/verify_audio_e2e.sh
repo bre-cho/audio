@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+IFS=$'\n\t'
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
@@ -11,8 +12,7 @@ DOCKER_COMPOSE_BIN="${DOCKER_COMPOSE_BIN:-docker compose}"
 AUTH_ENABLED="${AUTH_ENABLED:-0}"
 AUTH_EMAIL="${AUTH_EMAIL:-}"
 AUTH_PASSWORD="${AUTH_PASSWORD:-}"
-SAMPLE_PATH="${SAMPLE_PATH:-backend/data/audio/test_sample.mp3}"
-REPORT_DIR="$ROOT_DIR/.verify_audio_e2e"
+REPORT_DIR="${REPORT_DIR:-$ROOT_DIR/.verify_audio_e2e}"
 mkdir -p "$REPORT_DIR"
 REPORT_FILE="$REPORT_DIR/report.txt"
 PREVIEW_STATUS_FILE="$REPORT_DIR/audio_preview_job_status.json"
@@ -30,55 +30,126 @@ RUN_NARRATION_E2E="${RUN_NARRATION_E2E:-0}"
 
 log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; pass=false; }
+ok(){ log "OK: $*"; }
+trap 'fail "fatal error near line $LINENO"' ERR
+
 json_get() {
-  python - "$1" <<'PY'
-import json
-import sys
-
+  local path="$1"
+  python -c '
+import json, sys
 path = sys.argv[1]
-
 try:
-    data = json.load(sys.stdin)
+  data = json.load(sys.stdin)
 except Exception:
-    print("")
-    sys.exit(0)
-
+  print("")
+  raise SystemExit(0)
 cur = data
 for part in path.split("."):
-    if isinstance(cur, dict):
-        cur = cur.get(part)
-    else:
-        cur = None
-        break
+  if part.endswith("]") and "[" in part:
+    name, idx = part[:-1].split("[", 1)
+    if name:
+      cur = cur.get(name) if isinstance(cur, dict) else None
+    try:
+      cur = cur[int(idx)] if isinstance(cur, list) else None
+    except Exception:
+      cur = None
+  elif isinstance(cur, dict):
+    cur = cur.get(part)
+  else:
+    cur = None
+  if cur is None:
+    break
+if isinstance(cur, (dict, list)):
+  print(json.dumps(cur, separators=(",", ":")))
+else:
+  print("" if cur is None else cur)
+' "$path"
+}
 
-print("" if cur is None else cur)
-PY
+assert_not_empty() {
+  local value="$1"; local msg="$2"
+  [[ -n "$value" && "$value" != "null" ]] && ok "$msg" || fail "$msg"
+}
+
+assert_json_key() {
+  local json="$1"; local key="$2"; local msg="${3:-json key exists: $key}"
+  local value
+  value="$(printf '%s' "$json" | json_get "$key")"
+  assert_not_empty "$value" "$msg"
+}
+
+assert_http_head_audio() {
+  local url="$1"; local label="$2"
+  local headers content_type content_length
+  if ! headers="$(curl -fsSI "$BASE_URL$url" 2>>"$REPORT_FILE")"; then
+    fail "$label artifact not reachable: $url"
+    return
+  fi
+  ok "$label artifact reachable: $url"
+  content_type="$(printf '%s' "$headers" | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' | tr -d '\r' | tail -1)"
+  content_length="$(printf '%s' "$headers" | awk -F': ' 'tolower($1)=="content-length"{print $2}' | tr -d '\r' | tail -1)"
+  [[ "$content_type" == *audio* ]] && ok "$label content-type audio: $content_type" || fail "$label content-type not audio: $content_type"
+  if [[ -n "$content_length" ]]; then
+    [[ "$content_length" =~ ^[0-9]+$ && "$content_length" -gt 0 ]] && ok "$label content-length > 0" || fail "$label invalid content-length: $content_length"
+  fi
+}
+
+assert_artifact_contract() {
+  local artifact="$1"; local prefix="$2"
+  for key in artifact_id artifact_type url mime_type size_bytes checksum created_at source_job_id input_hash provider template_version runtime_version contract_pass lineage_pass replayability_pass determinism_pass drift_budget_pass promotion_status; do
+    assert_json_key "$artifact" "$key" "$prefix artifact key exists: $key"
+  done
+  local size checksum status
+  size="$(printf '%s' "$artifact" | json_get size_bytes)"
+  checksum="$(printf '%s' "$artifact" | json_get checksum)"
+  status="$(printf '%s' "$artifact" | json_get promotion_status)"
+  [[ "$size" =~ ^[0-9]+$ && "$size" -gt 0 ]] && ok "$prefix artifact size_bytes valid" || fail "$prefix artifact size_bytes invalid: $size"
+  [[ "$checksum" =~ ^[a-fA-F0-9]{64}$ ]] && ok "$prefix artifact checksum sha256-like" || fail "$prefix artifact checksum invalid"
+  [[ "$status" == "promoted" ]] && ok "$prefix artifact promoted" || fail "$prefix artifact not promoted: $status"
+  local url
+  url="$(printf '%s' "$artifact" | json_get url)"
+  assert_http_head_audio "$url" "$prefix"
+}
+
+assert_job_artifacts() {
+  local job_json="$1"
+  assert_json_key "$job_json" "runtime_json.artifacts[0]" "job has first artifact"
+  assert_json_key "$job_json" "runtime_json.artifacts[1]" "job has second artifact"
+  local artifact0 artifact1
+  artifact0="$(printf '%s' "$job_json" | json_get runtime_json.artifacts[0])"
+  artifact1="$(printf '%s' "$job_json" | json_get runtime_json.artifacts[1])"
+  assert_artifact_contract "$artifact0" "preview"
+  assert_artifact_contract "$artifact1" "output"
+  for key in contract_pass lineage_pass replayability_pass determinism_pass drift_budget_pass promotion_status checked_at; do
+    assert_json_key "$job_json" "runtime_json.promotion_gate.$key" "promotion gate key exists: $key"
+  done
 }
 
 SKIP_STACK_UP="${SKIP_STACK_UP:-0}"
 if [[ "$SKIP_STACK_UP" != "1" ]]; then
   $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 || fail "docker compose up failed"
+else
+  ok "skip stack up"
 fi
 python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 || fail "stack not healthy"
 
 if $DOCKER_COMPOSE_BIN exec -T "$WORKER_SERVICE" celery \
   -A app.workers.celery_app.celery_app inspect ping --timeout=10 >> "$REPORT_FILE" 2>&1
 then
-  log "OK: celery worker ready"
+  ok "celery worker ready"
 else
   fail "celery worker not ready"
 fi
 
-if $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" python - <<'PY' >> "$REPORT_FILE" 2>&1
+if $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" python - <<'PY_SCHEMA' >> "$REPORT_FILE" 2>&1
 import app.models  # noqa: F401
 from app.db.base import Base
 from app.db.session import engine
-
 Base.metadata.create_all(bind=engine)
 print("OK schema bootstrap")
-PY
+PY_SCHEMA
 then
-  log "OK: schema bootstrap guard"
+  ok "schema bootstrap guard"
 else
   fail "schema bootstrap guard"
 fi
@@ -86,48 +157,57 @@ $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&
 
 if [[ "$AUTH_ENABLED" == "1" ]]; then
   login_body=$(printf '{"email":"%s","password":"%s"}' "$AUTH_EMAIL" "$AUTH_PASSWORD")
-  login_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/auth/login" -H 'Content-Type: application/json' -d "$login_body" 2>>"$REPORT_FILE" || true)
+  if ! login_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/auth/login" -H 'Content-Type: application/json' -d "$login_body" 2>>"$REPORT_FILE"); then
+    fail "auth login request failed"
+    login_resp=""
+  fi
   token=$(printf '%s' "$login_resp" | json_get access_token)
   if [[ -n "$token" && "$token" != "null" ]]; then
     AUTH_ARGS=(-H "Authorization: Bearer $token")
-    log "OK: auth login"
+    ok "auth login"
   else
     fail "auth login failed"
   fi
 fi
 
-project_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/projects" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d '{"title":"audio-e2e-test"}' 2>>"$REPORT_FILE" || true)
+if ! project_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/projects" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d '{"title":"audio-e2e-test"}' 2>>"$REPORT_FILE"); then
+  fail "project create request failed"
+  project_resp=""
+fi
 PROJECT_ID=$(printf '%s' "$project_resp" | json_get id)
-[[ -n "$PROJECT_ID" && "$PROJECT_ID" != "null" ]] && log "OK: project created $PROJECT_ID" || fail "project create failed"
+assert_not_empty "$PROJECT_ID" "project created"
 
-# List available voices from the voices endpoint
 if curl -fsS "$BASE_URL/api/v1/voices" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" >> "$REPORT_FILE" 2>&1; then
-  log "OK: voices endpoint reachable"
+  ok "voices endpoint reachable"
 else
   fail "voices endpoint unreachable"
 fi
 
-preview_body=$(printf '{"text":"preview test from ci","project_id":"%s"}' "$PROJECT_ID")
-preview_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/preview" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$preview_body" 2>>"$REPORT_FILE" || true)
-PREVIEW_CREATE_JSON="$preview_resp"
-PREVIEW_JOB_ID=$(printf '%s' "$preview_resp" | json_get id)
-if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
-  log "OK: preview job created $PREVIEW_JOB_ID"
+if [[ -n "$PROJECT_ID" && "$PROJECT_ID" != "null" ]]; then
+  preview_body=$(printf '{"text":"preview test from ci","project_id":"%s"}' "$PROJECT_ID")
+  if ! preview_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/preview" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$preview_body" 2>>"$REPORT_FILE"); then
+    fail "preview create request failed"
+    preview_resp=""
+  fi
+  PREVIEW_JOB_ID=$(printf '%s' "$preview_resp" | json_get id)
+  assert_not_empty "$PREVIEW_JOB_ID" "preview job created"
 else
-  printf '%s' "$PREVIEW_CREATE_JSON" >> "$REPORT_FILE"
-  fail "preview job_id missing"
+  fail "skip preview: missing project_id"
 fi
 
-if [[ "$RUN_NARRATION_E2E" == "1" ]]; then
+if [[ "$RUN_NARRATION_E2E" == "1" && -n "$PROJECT_ID" && "$PROJECT_ID" != "null" ]]; then
   narration_body=$(printf '{"project_id":"%s","text":"segment one. segment two. segment three."}' "$PROJECT_ID")
-  narration_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/narration" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$narration_body" 2>>"$REPORT_FILE" || true)
+  if ! narration_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/narration" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$narration_body" 2>>"$REPORT_FILE"); then
+    fail "narration create request failed"
+    narration_resp=""
+  fi
   NARRATION_JOB_ID=$(printf '%s' "$narration_resp" | json_get id)
-  [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]] && log "OK: narration job created $NARRATION_JOB_ID" || log "WARN: narration did not return job id"
+  [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]] && ok "narration job created $NARRATION_JOB_ID" || log "WARN: narration did not return job id"
 fi
 
-# Poll preview job and verify artifact contract (preview_url / output_url)
 if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
   status=""
+  job_resp=""
   for _ in $(seq 1 "$PREVIEW_POLL_ATTEMPTS"); do
     sleep 5
     job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$PREVIEW_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
@@ -135,7 +215,7 @@ if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
     status=$(printf '%s' "$job_resp" | json_get status)
     log "preview poll status=$status"
     if [[ "$status" == "succeeded" || "$status" == "completed" ]]; then
-      log "OK: preview job succeeded"
+      ok "preview job succeeded"
       break
     fi
     if [[ "$status" == "failed" || "$status" == "error" ]]; then
@@ -148,47 +228,10 @@ if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
     cat "$PREVIEW_STATUS_FILE" >> "$REPORT_FILE" || true
     fail "preview job did not finish within timeout, last status=${status:-unknown}"
   else
-    preview_url=$(printf '%s' "$(cat "$PREVIEW_STATUS_FILE")" | json_get preview_url)
-    output_url=$(printf '%s' "$(cat "$PREVIEW_STATUS_FILE")" | json_get output_url)
-    log "OK: output_url=$output_url preview_url=$preview_url"
-
-    if [[ -n "$preview_url" ]]; then
-      curl -fsSI "$BASE_URL$preview_url" >> "$REPORT_FILE" 2>&1 \
-        && log "OK: preview artifact reachable: $preview_url" \
-        || fail "preview artifact not reachable: $preview_url"
-      preview_content_type=$(
-        curl -fsSI "$BASE_URL$preview_url" 2>>"$REPORT_FILE" \
-          | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' \
-          | tr -d '\r' \
-        || true
-      )
-      echo "$preview_content_type" | grep -q "audio" \
-        && log "OK: preview content-type is audio: $preview_content_type" \
-        || fail "preview artifact content-type is not audio: $preview_content_type"
-    else
-      fail "preview_url missing"
-    fi
-
-    if [[ -n "$output_url" ]]; then
-      curl -fsSI "$BASE_URL$output_url" >> "$REPORT_FILE" 2>&1 \
-        && log "OK: output artifact reachable: $output_url" \
-        || fail "output artifact not reachable: $output_url"
-      output_content_type=$(
-        curl -fsSI "$BASE_URL$output_url" 2>>"$REPORT_FILE" \
-          | awk -F': ' 'tolower($1)=="content-type"{print tolower($2)}' \
-          | tr -d '\r' \
-        || true
-      )
-      echo "$output_content_type" | grep -q "audio" \
-        && log "OK: output content-type is audio: $output_content_type" \
-        || fail "output artifact content-type is not audio: $output_content_type"
-    else
-      fail "output_url missing"
-    fi
+    assert_job_artifacts "$(cat "$PREVIEW_STATUS_FILE")"
   fi
 fi
 
-# Poll narration job — only verify it reaches succeeded state
 if [[ "$RUN_NARRATION_E2E" == "1" && -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
   status=""
   for _ in $(seq 1 "$NARRATION_POLL_ATTEMPTS"); do
@@ -198,7 +241,8 @@ if [[ "$RUN_NARRATION_E2E" == "1" && -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_I
     status=$(printf '%s' "$job_resp" | json_get status)
     log "narration poll status=$status"
     if [[ "$status" == "succeeded" || "$status" == "completed" ]]; then
-      log "OK: narration job succeeded"
+      ok "narration job succeeded"
+      assert_job_artifacts "$(cat "$NARRATION_STATUS_FILE")"
       break
     fi
     if [[ "$status" == "failed" || "$status" == "error" ]]; then
