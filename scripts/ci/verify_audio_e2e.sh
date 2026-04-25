@@ -24,6 +24,7 @@ PREVIEW_JOB_ID=""
 NARRATION_JOB_ID=""
 PREVIEW_POLL_ATTEMPTS="${PREVIEW_POLL_ATTEMPTS:-40}"
 NARRATION_POLL_ATTEMPTS="${NARRATION_POLL_ATTEMPTS:-12}"
+RUN_NARRATION_E2E="${RUN_NARRATION_E2E:-1}"
 
 log(){ echo "$*" | tee -a "$REPORT_FILE"; }
 fail(){ log "FAIL: $*"; pass=false; }
@@ -38,6 +39,14 @@ if [[ "$SKIP_STACK_UP" != "1" ]]; then
   $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 || fail "docker compose up failed"
 fi
 python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 || fail "stack not healthy"
+
+if $DOCKER_COMPOSE_BIN exec -T "$WORKER_SERVICE" celery \
+  -A app.workers.celery_app.celery_app inspect ping >> "$REPORT_FILE" 2>&1
+then
+  log "OK: celery worker ready"
+else
+  fail "celery worker not ready"
+fi
 
 if $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" python - <<'PY' >> "$REPORT_FILE" 2>&1
 import app.models  # noqa: F401
@@ -82,10 +91,12 @@ preview_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/preview" -H 'Content-Ty
 PREVIEW_JOB_ID=$(printf '%s' "$preview_resp" | json_get id)
 [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]] && log "OK: preview job created $PREVIEW_JOB_ID" || fail "preview job id missing"
 
-narration_body=$(printf '{"project_id":"%s","text":"segment one. segment two. segment three."}' "$PROJECT_ID")
-narration_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/narration" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$narration_body" 2>>"$REPORT_FILE" || true)
-NARRATION_JOB_ID=$(printf '%s' "$narration_resp" | json_get id)
-[[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]] && log "OK: narration job created $NARRATION_JOB_ID" || log "WARN: narration did not return job id"
+if [[ "$RUN_NARRATION_E2E" == "1" ]]; then
+  narration_body=$(printf '{"project_id":"%s","text":"segment one. segment two. segment three."}' "$PROJECT_ID")
+  narration_resp=$(curl -fsS -X POST "$BASE_URL/api/v1/audio/narration" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" -d "$narration_body" 2>>"$REPORT_FILE" || true)
+  NARRATION_JOB_ID=$(printf '%s' "$narration_resp" | json_get id)
+  [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]] && log "OK: narration job created $NARRATION_JOB_ID" || log "WARN: narration did not return job id"
+fi
 
 # Poll preview job and verify artifact contract (preview_url / output_url)
 if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
@@ -151,7 +162,7 @@ if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
 fi
 
 # Poll narration job — only verify it reaches succeeded state
-if [[ -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
+if [[ "$RUN_NARRATION_E2E" == "1" && -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_ID" != "null" ]]; then
   status=""
   for _ in $(seq 1 "$NARRATION_POLL_ATTEMPTS"); do
     sleep 5

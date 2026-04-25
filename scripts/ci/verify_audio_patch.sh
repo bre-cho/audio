@@ -61,6 +61,14 @@ if [[ "$VERIFY_RUNTIME" == "1" ]]; then
   python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 \
     || fail "stack not healthy"
 
+  if $DOCKER_COMPOSE_BIN exec -T "$WORKER_SERVICE" celery \
+    -A app.workers.celery_app.celery_app inspect ping >> "$REPORT_FILE" 2>&1
+  then
+    ok "celery worker ready"
+  else
+    fail "celery worker not ready"
+  fi
+
   if $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" python - <<'PY' >> "$REPORT_FILE" 2>&1
 import app.models  # noqa: F401
 from app.db.base import Base
