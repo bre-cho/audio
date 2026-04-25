@@ -78,7 +78,12 @@ else
 fi
 
 if [[ "$VERIFY_RUNTIME" == "1" && -d backend/tests ]]; then
-  pytest -q -k "audio or narration or voice_clone" >> "$REPORT_FILE" 2>&1 || fail "pytest audio subset failed"
+  pytest \
+    backend/tests/test_audio_regression_guard.py \
+    backend/tests/test_audio_worker_artifact_guard.py \
+    backend/tests/test_worker_retry_state_semantics.py \
+    -q >> "$REPORT_FILE" 2>&1 \
+    || fail "pytest audio guard tests failed"
 else
   ok "pytest runtime subset skipped"
 fi
