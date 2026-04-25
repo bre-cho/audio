@@ -15,6 +15,8 @@ SAMPLE_PATH="${SAMPLE_PATH:-backend/data/audio/test_sample.mp3}"
 REPORT_DIR="$ROOT_DIR/.verify_audio_e2e"
 mkdir -p "$REPORT_DIR"
 REPORT_FILE="$REPORT_DIR/report.txt"
+PREVIEW_STATUS_FILE="$REPORT_DIR/audio_preview_job_status.json"
+NARRATION_STATUS_FILE="$REPORT_DIR/audio_narration_job_status.json"
 : > "$REPORT_FILE"
 
 pass=true
@@ -104,7 +106,7 @@ if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
   for _ in $(seq 1 "$PREVIEW_POLL_ATTEMPTS"); do
     sleep 5
     job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$PREVIEW_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
-    printf '%s' "$job_resp" > /tmp/audio_preview_job_status.json
+    printf '%s' "$job_resp" > "$PREVIEW_STATUS_FILE"
     status=$(printf '%s' "$job_resp" | json_get status)
     log "preview poll status=$status"
     if [[ "$status" == "succeeded" || "$status" == "completed" ]]; then
@@ -118,11 +120,11 @@ if [[ -n "$PREVIEW_JOB_ID" && "$PREVIEW_JOB_ID" != "null" ]]; then
   done
   if [[ "${status:-}" != "succeeded" && "${status:-}" != "completed" ]]; then
     log "last preview response:"
-    cat /tmp/audio_preview_job_status.json >> "$REPORT_FILE" || true
+    cat "$PREVIEW_STATUS_FILE" >> "$REPORT_FILE" || true
     fail "preview job did not finish within timeout, last status=${status:-unknown}"
   else
-    preview_url=$(printf '%s' "$(cat /tmp/audio_preview_job_status.json)" | json_get preview_url)
-    output_url=$(printf '%s' "$(cat /tmp/audio_preview_job_status.json)" | json_get output_url)
+    preview_url=$(printf '%s' "$(cat "$PREVIEW_STATUS_FILE")" | json_get preview_url)
+    output_url=$(printf '%s' "$(cat "$PREVIEW_STATUS_FILE")" | json_get output_url)
     log "OK: output_url=$output_url preview_url=$preview_url"
 
     if [[ -n "$preview_url" ]]; then
@@ -167,7 +169,7 @@ if [[ "$RUN_NARRATION_E2E" == "1" && -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_I
   for _ in $(seq 1 "$NARRATION_POLL_ATTEMPTS"); do
     sleep 5
     job_resp=$(curl -fsS "$BASE_URL/api/v1/jobs/$NARRATION_JOB_ID" "${AUTH_ARGS[@]}" 2>>"$REPORT_FILE" || true)
-    printf '%s' "$job_resp" > /tmp/audio_narration_job_status.json
+    printf '%s' "$job_resp" > "$NARRATION_STATUS_FILE"
     status=$(printf '%s' "$job_resp" | json_get status)
     log "narration poll status=$status"
     if [[ "$status" == "succeeded" || "$status" == "completed" ]]; then
@@ -181,7 +183,7 @@ if [[ "$RUN_NARRATION_E2E" == "1" && -n "$NARRATION_JOB_ID" && "$NARRATION_JOB_I
   done
   if [[ "${status:-}" != "succeeded" && "${status:-}" != "completed" ]]; then
     log "last narration response:"
-    cat /tmp/audio_narration_job_status.json >> "$REPORT_FILE" || true
+    cat "$NARRATION_STATUS_FILE" >> "$REPORT_FILE" || true
     fail "narration job did not finish within timeout, last status=${status:-unknown}"
   fi
 fi
