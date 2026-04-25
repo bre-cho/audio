@@ -1,0 +1,44 @@
+name: audio-master-verify
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "scripts/ci/**"
+      - ".github/workflows/audio-master-verify.yml"
+  workflow_dispatch:
+
+jobs:
+  master-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+          pip install pytest
+      - name: Static verify scripts
+        run: |
+          bash -n scripts/ci/verify_audio_patch.sh
+          bash -n scripts/ci/verify_audio_e2e.sh
+      - name: Compile backend
+        run: |
+          python -m compileall backend/app
+      - name: Verify audio patch without runtime
+        run: |
+          VERIFY_RUNTIME=0 SKIP_STACK_UP=1 bash scripts/ci/verify_audio_patch.sh
+      - name: Upload verify report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-master-verify-report
+          path: |
+            .verify_audio_patch/report.txt
+            .verify_audio_e2e/report.txt
+          if-no-files-found: ignore

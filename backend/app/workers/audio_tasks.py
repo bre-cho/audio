@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.db.session import SessionLocal
 from app.models.audio_job import AudioJob
+from app.models.audio_output import AudioOutput
 from app.services.audio_artifact_service import write_audio_artifacts
 from app.workers.celery_app import celery_app
 
@@ -65,24 +66,81 @@ def enqueue_batch_job(job_id: str) -> None:
     process_batch_job.delay(job_id)
 
 
+def _promotion_gate(result: dict, promotion_reason: str) -> dict:
+    return {
+        "contract_pass": True,
+        "lineage_pass": True,
+        "write_integrity_pass": True,
+        # Truthful status: not proven in this worker.
+        "replayability_pass": False,
+        "determinism_pass": False,
+        "drift_budget_pass": False,
+        "replayability_status": "pending",
+        "determinism_status": "pending",
+        "drift_budget_status": "pending",
+        "promotion_status": "contract_verified",
+        "promotion_reason": promotion_reason,
+        "checked_at": datetime.now(UTC).isoformat(),
+    }
+
+
 def _success_runtime(result: dict, promotion_reason: str) -> dict:
     return {
         "provider": "internal_genvoice",
         "artifact_contract_version": result["artifact_contract_version"],
         "artifacts": result["artifacts"],
-        "promotion_gate": {
-            "contract_pass": True,
-            "lineage_pass": True,
-            "replayability_pass": True,
-            "determinism_pass": True,
-            "drift_budget_pass": True,
-            "promotion_status": "promoted",
-            "promotion_reason": promotion_reason,
-            "checked_at": datetime.now(UTC).isoformat(),
-        },
+        "promotion_gate": _promotion_gate(result, promotion_reason),
         "preview_url": result["preview_url"],
         "output_url": result["output_url"],
     }
+
+
+def _persist_audio_outputs(db, *, job_uuid: UUID, artifacts: list[dict]) -> None:
+    """Persist artifact contracts into audio_outputs idempotently per job.
+
+    Runtime JSON is useful for API responses, but DB rows are the durable audit
+    surface for lineage/replay/debug. We replace rows for the job on successful
+    regeneration so retries cannot create duplicate outputs.
+    """
+    db.query(AudioOutput).filter(AudioOutput.job_id == job_uuid).delete(synchronize_session=False)
+    for artifact in artifacts:
+        db.add(
+            AudioOutput(
+                job_id=job_uuid,
+                output_type=artifact["artifact_type"],
+                storage_key=artifact.get("storage_key") or artifact.get("path") or artifact["url"],
+                public_url=artifact.get("url"),
+                mime_type=artifact.get("mime_type"),
+                duration_ms=500,
+                size_bytes=int(artifact.get("size_bytes") or 0),
+                checksum=artifact.get("checksum"),
+                waveform_json=artifact,
+            )
+        )
+
+
+def _mark_job_succeeded_with_artifacts(job_id: str, *, result: dict, promotion_reason: str) -> None:
+    db = SessionLocal()
+    try:
+        job_uuid = UUID(job_id)
+        job = db.query(AudioJob).filter(AudioJob.id == job_uuid).one_or_none()
+        if job is None:
+            logger.warning("Job %s not found in DB", job_id)
+            return
+
+        _persist_audio_outputs(db, job_uuid=job_uuid, artifacts=result["artifacts"])
+        job.status = "succeeded"
+        job.preview_url = result["preview_url"]
+        job.output_url = result["output_url"]
+        job.runtime_json = _success_runtime(result, promotion_reason)
+        job.finished_at = datetime.now(UTC)
+        job.updated_at = datetime.now(UTC)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 @celery_app.task(name="audio.process_tts_job", bind=True, max_retries=3)
@@ -91,13 +149,10 @@ def process_tts_job(self, job_id: str) -> dict:
         _update_job(job_id, status="processing", started_at=datetime.now(UTC))
         snapshot = _get_job_snapshot(job_id) or {"request_json": {}}
         result = write_audio_artifacts(job_id, request_json=snapshot.get("request_json") or {})
-        _update_job(
+        _mark_job_succeeded_with_artifacts(
             job_id,
-            status="succeeded",
-            preview_url=result["preview_url"],
-            output_url=result["output_url"],
-            runtime_json=_success_runtime(result, "all generated preview artifacts passed write-time integrity checks"),
-            finished_at=datetime.now(UTC),
+            result=result,
+            promotion_reason="artifacts passed write-time storage integrity and contract validation; advanced gates pending",
         )
         return {"job_id": job_id, "status": "succeeded", **result}
     except Exception as exc:
@@ -131,13 +186,10 @@ def process_batch_job(self, job_id: str) -> dict:
         _update_job(job_id, status="processing", started_at=datetime.now(UTC))
         snapshot = _get_job_snapshot(job_id) or {"request_json": {}}
         result = write_audio_artifacts(job_id, request_json=snapshot.get("request_json") or {})
-        _update_job(
+        _mark_job_succeeded_with_artifacts(
             job_id,
-            status="succeeded",
-            preview_url=result["preview_url"],
-            output_url=result["output_url"],
-            runtime_json=_success_runtime(result, "narration artifacts passed write-time integrity checks"),
-            finished_at=datetime.now(UTC),
+            result=result,
+            promotion_reason="narration artifacts passed write-time storage integrity and contract validation; advanced gates pending",
         )
         return {"job_id": job_id, "status": "succeeded", **result}
     except Exception as exc:

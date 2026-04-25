@@ -96,16 +96,22 @@ assert_http_head_audio() {
 
 assert_artifact_contract() {
   local artifact="$1"; local prefix="$2"
-  for key in artifact_id artifact_type url mime_type size_bytes checksum created_at source_job_id input_hash provider template_version runtime_version contract_pass lineage_pass replayability_pass determinism_pass drift_budget_pass promotion_status; do
+  for key in artifact_id artifact_type url mime_type size_bytes checksum created_at source_job_id input_hash provider template_version runtime_version write_integrity_pass contract_pass lineage_pass replayability_pass determinism_pass drift_budget_pass promotion_status; do
     assert_json_key "$artifact" "$key" "$prefix artifact key exists: $key"
   done
-  local size checksum status
+  local size checksum status contract_pass lineage_pass write_integrity_pass
   size="$(printf '%s' "$artifact" | json_get size_bytes)"
   checksum="$(printf '%s' "$artifact" | json_get checksum)"
   status="$(printf '%s' "$artifact" | json_get promotion_status)"
+  contract_pass="$(printf '%s' "$artifact" | json_get contract_pass)"
+  lineage_pass="$(printf '%s' "$artifact" | json_get lineage_pass)"
+  write_integrity_pass="$(printf '%s' "$artifact" | json_get write_integrity_pass)"
   [[ "$size" =~ ^[0-9]+$ && "$size" -gt 0 ]] && ok "$prefix artifact size_bytes valid" || fail "$prefix artifact size_bytes invalid: $size"
   [[ "$checksum" =~ ^[a-fA-F0-9]{64}$ ]] && ok "$prefix artifact checksum sha256-like" || fail "$prefix artifact checksum invalid"
-  [[ "$status" == "promoted" ]] && ok "$prefix artifact promoted" || fail "$prefix artifact not promoted: $status"
+  [[ "$contract_pass" == "True" || "$contract_pass" == "true" ]] && ok "$prefix artifact contract_pass=true" || fail "$prefix artifact contract_pass invalid: $contract_pass"
+  [[ "$lineage_pass" == "True" || "$lineage_pass" == "true" ]] && ok "$prefix artifact lineage_pass=true" || fail "$prefix artifact lineage_pass invalid: $lineage_pass"
+  [[ "$write_integrity_pass" == "True" || "$write_integrity_pass" == "true" ]] && ok "$prefix artifact write_integrity_pass=true" || fail "$prefix artifact write_integrity_pass invalid: $write_integrity_pass"
+  [[ "$status" == "contract_verified" || "$status" == "promoted" ]] && ok "$prefix artifact promotion status accepted: $status" || fail "$prefix artifact invalid promotion_status: $status"
   local url
   url="$(printf '%s' "$artifact" | json_get url)"
   assert_http_head_audio "$url" "$prefix"
@@ -120,7 +126,7 @@ assert_job_artifacts() {
   artifact1="$(printf '%s' "$job_json" | json_get runtime_json.artifacts[1])"
   assert_artifact_contract "$artifact0" "preview"
   assert_artifact_contract "$artifact1" "output"
-  for key in contract_pass lineage_pass replayability_pass determinism_pass drift_budget_pass promotion_status checked_at; do
+  for key in contract_pass lineage_pass write_integrity_pass replayability_pass determinism_pass drift_budget_pass promotion_status checked_at; do
     assert_json_key "$job_json" "runtime_json.promotion_gate.$key" "promotion gate key exists: $key"
   done
 }

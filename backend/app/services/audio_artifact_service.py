@@ -1,31 +1,28 @@
 from __future__ import annotations
 
-import hashlib
-import mimetypes
+import json
 import platform
 import sys
 import uuid
 import wave
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-from app.core.config import AUDIO_ARTIFACT_DIR
+from app.core.storage import StorageService, compute_sha256
 
 DEFAULT_PROVIDER = "internal_genvoice"
 DEFAULT_TEMPLATE_VERSION = "audio-placeholder-v1"
 DEFAULT_MODEL_VERSION = "internal_genvoice/silent-wav-v1"
 DEFAULT_RUNTIME_VERSION = f"python-{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}-{platform.system().lower()}"
+ARTIFACT_CONTRACT_VERSION = "v2.truthful-contract"
 
 
 def sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+    return compute_sha256(data)
 
 
 def stable_input_hash(payload: dict[str, Any] | None) -> str:
     """Create a deterministic hash for the job input payload."""
-    import json
-
     encoded = json.dumps(payload or {}, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return sha256_bytes(encoded)
 
@@ -45,26 +42,16 @@ def _silent_wav_bytes(duration_seconds: float = 0.5) -> bytes:
     return buffer.getvalue()
 
 
-def _write_verified(path: Path, data: bytes) -> dict[str, Any]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_bytes(data)
-    actual_size = tmp_path.stat().st_size
-    expected_size = len(data)
-    if actual_size != expected_size:
-        tmp_path.unlink(missing_ok=True)
-        raise RuntimeError(f"artifact write size mismatch: expected={expected_size} actual={actual_size}")
-    tmp_path.replace(path)
-    checksum = sha256_bytes(path.read_bytes())
-    return {"size_bytes": actual_size, "checksum": checksum}
-
-
 def _artifact_contract(
     *,
     job_id: str,
     output_type: str,
-    path: Path,
+    stored_key: str,
+    path: str,
     public_url: str,
+    mime_type: str,
+    size_bytes: int,
+    checksum: str,
     request_json: dict[str, Any] | None = None,
     provider: str = DEFAULT_PROVIDER,
     template_version: str = DEFAULT_TEMPLATE_VERSION,
@@ -72,19 +59,19 @@ def _artifact_contract(
     runtime_version: str = DEFAULT_RUNTIME_VERSION,
     parent_artifact_id: str | None = None,
 ) -> dict[str, Any]:
-    integrity = {"size_bytes": path.stat().st_size, "checksum": sha256_bytes(path.read_bytes())}
-    mime_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
     input_hash = stable_input_hash(request_json)
-    artifact_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"audio-artifact:{job_id}:{output_type}:{input_hash}"))
+    artifact_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"audio-artifact:{job_id}:{output_type}:{input_hash}:{checksum}"))
+    checked_at = datetime.now(UTC).isoformat()
     return {
         "artifact_id": artifact_id,
         "artifact_type": output_type,
-        "path": str(path),
+        "storage_key": stored_key,
+        "path": path,
         "url": public_url,
         "mime_type": mime_type,
-        "size_bytes": integrity["size_bytes"],
-        "checksum": integrity["checksum"],
-        "created_at": datetime.now(UTC).isoformat(),
+        "size_bytes": size_bytes,
+        "checksum": checksum,
+        "created_at": checked_at,
         "source_job_id": job_id,
         "job_id": job_id,
         "input_hash": input_hash,
@@ -93,14 +80,20 @@ def _artifact_contract(
         "template_version": template_version,
         "runtime_version": runtime_version,
         "parent_artifact_id": parent_artifact_id,
-        "replayability_pass": True,
-        "determinism_pass": True,
-        "drift_budget_pass": True,
-        "lineage_pass": True,
+        "write_integrity_pass": True,
         "contract_pass": True,
-        "promotion_status": "promoted",
-        "promotion_reason": "placeholder artifact contract verified by write-time integrity checks",
-        "checked_at": datetime.now(UTC).isoformat(),
+        "lineage_pass": True,
+        # Truthful governance flags: these are not proven by write-time checks.
+        "replayability_pass": False,
+        "determinism_pass": False,
+        "drift_budget_pass": False,
+        "replayability_status": "pending",
+        "determinism_status": "pending",
+        "drift_budget_status": "pending",
+        "promotion_status": "contract_verified",
+        "promotion_reason": "artifact passed write-time storage integrity and contract validation; replay/determinism/drift gates are pending",
+        "checked_at": checked_at,
+        "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
 
 
@@ -111,30 +104,39 @@ def _create_artifact(
     output_type: str,
     request_json: dict[str, Any] | None,
     duration_seconds: float = 0.5,
+    storage: StorageService | None = None,
 ) -> dict[str, Any]:
-    audio_dir = Path(AUDIO_ARTIFACT_DIR)
     filename = f"{job_id}.{suffix}.wav" if suffix else f"{job_id}.wav"
-    path = audio_dir / filename
+    storage_key = f"audio/{filename}"
     data = _silent_wav_bytes(duration_seconds)
-    _write_verified(path, data)
+    stored = (storage or StorageService()).put_bytes(storage_key, data, "audio/wav")
+    if stored.size_bytes is None or stored.size_bytes <= 0:
+        raise RuntimeError("stored artifact has invalid size")
+    if not stored.checksum or len(stored.checksum) != 64:
+        raise RuntimeError("stored artifact has invalid checksum")
     return _artifact_contract(
         job_id=job_id,
         output_type=output_type,
-        path=path,
-        public_url=f"/artifacts/audio/{filename}",
+        stored_key=stored.key,
+        path=stored.path or "",
+        public_url=stored.public_url or f"/artifacts/{storage_key}",
+        mime_type=stored.mime_type or "audio/wav",
+        size_bytes=stored.size_bytes,
+        checksum=stored.checksum,
         request_json=request_json,
     )
 
 
 def write_audio_artifacts(job_id: str, request_json: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Write audio files and return URLs plus full artifact contracts."""
-    preview = _create_artifact(job_id=job_id, suffix="preview", output_type="preview", request_json=request_json)
-    output = _create_artifact(job_id=job_id, suffix="", output_type="output", request_json=request_json)
+    """Write audio files and return URLs plus truthful artifact contracts."""
+    storage = StorageService()
+    preview = _create_artifact(job_id=job_id, suffix="preview", output_type="preview", request_json=request_json, storage=storage)
+    output = _create_artifact(job_id=job_id, suffix="", output_type="output", request_json=request_json, storage=storage)
     return {
         "preview_url": preview["url"],
         "output_url": output["url"],
         "artifacts": [preview, output],
-        "artifact_contract_version": "v1",
+        "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
 
 

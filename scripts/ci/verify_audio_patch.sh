@@ -91,6 +91,15 @@ assert_contract_code_present() {
   grep -q "promotion_gate" backend/app/workers/audio_tasks.py \
     && ok "promotion gate runtime metadata present" \
     || fail "promotion gate runtime metadata missing"
+  grep -q "StorageService" backend/app/services/audio_artifact_service.py \
+    && ok "artifact writer uses StorageService" \
+    || fail "artifact writer bypasses StorageService"
+  grep -q "_persist_audio_outputs" backend/app/workers/audio_tasks.py \
+    && ok "audio output DB persistence present" \
+    || fail "audio output DB persistence missing"
+  grep -q "contract_verified" backend/app/workers/audio_tasks.py \
+    && ok "truthful contract status present" \
+    || fail "truthful contract status missing"
 }
 
 run "compile backend" python -m compileall backend/app
