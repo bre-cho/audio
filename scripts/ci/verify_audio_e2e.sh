@@ -38,6 +38,20 @@ if [[ "$SKIP_STACK_UP" != "1" ]]; then
   $DOCKER_COMPOSE_BIN up -d postgres redis api worker >> "$REPORT_FILE" 2>&1 || fail "docker compose up failed"
 fi
 python scripts/ci/wait_for_stack.py 300 >> "$REPORT_FILE" 2>&1 || fail "stack not healthy"
+
+if $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" python - <<'PY' >> "$REPORT_FILE" 2>&1
+import app.models  # noqa: F401
+from app.db.base import Base
+from app.db.session import engine
+
+Base.metadata.create_all(bind=engine)
+print("OK schema bootstrap")
+PY
+then
+  log "OK: schema bootstrap guard"
+else
+  fail "schema bootstrap guard"
+fi
 $DOCKER_COMPOSE_BIN exec -T "$API_SERVICE" ffmpeg -version >> "$REPORT_FILE" 2>&1 || fail "ffmpeg missing in api"
 
 if [[ "$AUTH_ENABLED" == "1" ]]; then
