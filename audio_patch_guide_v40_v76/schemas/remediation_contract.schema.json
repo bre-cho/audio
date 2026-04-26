@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RemediationContract",
+  "type": "object",
+  "required": [
+    "remediation_id",
+    "trigger_source",
+    "runbook_id",
+    "action_plan",
+    "auto_apply_allowed",
+    "risk_level",
+    "blast_radius_estimate",
+    "confidence_score",
+    "execution_status",
+    "verification_status",
+    "human_override_required",
+    "approval_tier",
+    "execution_allowed"
+  ],
+  "properties": {
+    "remediation_id": {
+      "type": "string"
+    },
+    "trigger_source": {
+      "enum": [
+        "regression",
+        "canary",
+        "incident",
+        "slo_breach"
+      ]
+    },
+    "runbook_id": {
+      "type": "string"
+    },
+    "action_plan": {
+      "type": "array"
+    },
+    "auto_apply_allowed": {
+      "type": "boolean"
+    },
+    "risk_level": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "blast_radius_estimate": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "confidence_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "execution_status": {
+      "enum": [
+        "pending",
+        "running",
+        "succeeded",
+        "failed"
+      ]
+    },
+    "verification_status": {
+      "enum": [
+        "pending",
+        "pass",
+        "fail"
+      ]
+    },
+    "human_override_required": {
+      "type": "boolean"
+    },
+    "approval_tier": {
+      "enum": [
+        "tier_0",
+        "tier_1",
+        "tier_2",
+        "tier_3"
+      ]
+    },
+    "execution_allowed": {
+      "type": "boolean"
+    }
+  }
+}

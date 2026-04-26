@@ -1,0 +1,8 @@
+{
+  "name": "audio_patch_guide_v40_v76",
+  "version": "1.0.0",
+  "patch_range": "v40-v76",
+  "entrypoint": "docs/audio-factory-patches/README.md",
+  "apply_order": "docs/audio-factory-patches/PATCH_ORDER.md",
+  "checklist": "docs/audio-factory-patches/CHECKLIST.md"
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BaselineContract",
+  "type": "object",
+  "required": [
+    "baseline_id",
+    "artifact_id",
+    "baseline_type",
+    "owner",
+    "approved_by",
+    "created_at",
+    "retention_days",
+    "replay_schedule",
+    "drift_budget_policy",
+    "status",
+    "lifecycle_state"
+  ],
+  "properties": {
+    "baseline_id": {
+      "type": "string"
+    },
+    "artifact_id": {
+      "type": "string"
+    },
+    "baseline_type": {
+      "enum": [
+        "golden",
+        "canary",
+        "regression"
+      ]
+    },
+    "owner": {
+      "type": "string"
+    },
+    "approved_by": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "retention_days": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "replay_schedule": {
+      "type": "string"
+    },
+    "drift_budget_policy": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "standby",
+        "deprecated",
+        "frozen"
+      ]
+    },
+    "lifecycle_state": {
+      "enum": [
+        "candidate",
+        "canary_active",
+        "active",
+        "deprecated",
+        "frozen",
+        "archived"
+      ]
+    }
+  }
+}
