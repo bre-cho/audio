@@ -40,9 +40,9 @@ if bootstrap_mode in {"metadata-create-all", "audio-factory-migrate"}:
         import sys
         from pathlib import Path
 
-        _alembic_ini = Path(__file__).resolve().parents[2] / "alembic.ini"
+        _alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
         subprocess.run(
             [sys.executable, "-m", "alembic", "-c", str(_alembic_ini), "upgrade", "head"],
-            cwd=str(Path(__file__).resolve().parents[2]),
+            cwd=str(Path(__file__).resolve().parents[1]),
             check=True,
         )
