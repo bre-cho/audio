@@ -4,6 +4,18 @@ from app.models.audio_job import AudioJob
 from app.models.voice import Voice
 
 
+
+def test_tts_generate_route_persists_tts_generate_workflow_type(client, db_session):
+    response = client.post('/api/v1/tts/generate', json={'text': 'hello generate'})
+    assert response.status_code == 200
+    job_id = response.json()['job_id']
+
+    job = db_session.query(AudioJob).filter(AudioJob.id == uuid.UUID(job_id)).one()
+    assert job.job_type == 'tts'
+    assert job.workflow_type == 'tts_generate'
+    assert job.request_json['text'] == 'hello generate'
+
+
 def test_audio_preview_route_persists_workflow_type_and_task_shape(client, db_session):
     response = client.post('/api/v1/audio/preview', json={'text': 'hello world', 'voice': 'default'})
     assert response.status_code == 201

@@ -4,7 +4,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
-from app.audio_factory import AudioFactoryExecutor, AudioTaskRequest, AudioWorkflowType
+from app.audio_factory import AudioFactoryExecutor, AudioJobFinalizer, AudioTaskRequest, AudioWorkflowType
 from app.db.session import SessionLocal
 from app.models.audio_job import AudioJob
 from app.services.audio_artifact_service import write_clone_preview_artifact
@@ -56,6 +56,7 @@ def _get_job_snapshot(job_id: str) -> dict | None:
         return {
             "id": str(job.id),
             "job_type": job.job_type,
+            "workflow_type": job.workflow_type,
             "request_json": job.request_json or {},
             "runtime_json": job.runtime_json or {},
         }
@@ -65,14 +66,19 @@ def _get_job_snapshot(job_id: str) -> dict | None:
 
 def _build_clone_preview_task(job_id: str, snapshot: dict | None) -> AudioTaskRequest:
     payload = (snapshot or {}).get("request_json") or {}
+    raw_workflow_type = (snapshot or {}).get("workflow_type")
+    workflow_type = AudioWorkflowType(raw_workflow_type) if raw_workflow_type and raw_workflow_type != "unknown" else AudioWorkflowType.CLONE_PREVIEW
     return AudioTaskRequest(
-        workflow_type=AudioWorkflowType.CLONE_PREVIEW,
+        workflow_type=workflow_type,
         source_job_id=job_id,
         request_json=payload,
         text=payload.get("text"),
-        clone_source_key=payload.get("clone_source_key") or payload.get("sample_file_id"),
+        clone_source_key=payload.get("clone_source_key") or payload.get("sample_file_id") or payload.get("voice"),
         provider=payload.get("provider") or "internal_genvoice",
-        metadata={"job_type": (snapshot or {}).get("job_type")},
+        metadata={
+            "job_type": (snapshot or {}).get("job_type"),
+            "workflow_type": workflow_type.value,
+        },
     )
 
 
@@ -87,45 +93,22 @@ def _execute_clone_preview(job_id: str):
         db.close()
 
 
-def _clone_preview_runtime(result: dict) -> dict:
-    return {
-        "provider": "internal_genvoice",
-        "artifact_contract_version": result["artifact_contract_version"],
-        "preview_url": result["preview_url"],
-        "artifacts": result["artifacts"],
-        "factory_validation": result.get("factory_validation", {}),
-        "factory_metrics": result.get("factory_metrics", {}),
-        "promotion_gate": {
-            "contract_pass": True,
-            "lineage_pass": True,
-            "write_integrity_pass": True,
-            "replayability_pass": False,
-            "determinism_pass": False,
-            "drift_budget_pass": False,
-            "replayability_status": "pending",
-            "determinism_status": "pending",
-            "drift_budget_status": "pending",
-            "promotion_status": "contract_verified",
-            "promotion_reason": "clone preview artifact passed write-time storage integrity and contract validation; advanced gates pending",
-            "checked_at": datetime.now(UTC).isoformat(),
-        },
-    }
+def _factory_error(execution) -> str:
+    if execution.incident:
+        return execution.incident.get("error_message") or str(execution.incident)
+    return execution.validation.get("error") or str(execution.validation)
 
 
-def _mark_clone_preview_succeeded_with_artifacts(job_id: str, *, result: dict) -> None:
+def _finalize_clone_preview_success(job_id: str, *, execution) -> dict:
     db = SessionLocal()
     try:
-        job_uuid = UUID(job_id)
-        job = db.query(AudioJob).filter(AudioJob.id == job_uuid).one_or_none()
-        if job is None:
-            logger.warning("Job %s not found in DB", job_id)
-            return
-        job.status = "succeeded"
-        job.preview_url = result["preview_url"]
-        job.runtime_json = _clone_preview_runtime(result)
-        job.finished_at = datetime.now(UTC)
-        job.updated_at = datetime.now(UTC)
-        db.commit()
+        job = AudioJobFinalizer().finalize_success(
+            db=db,
+            job_id=job_id,
+            execution=execution,
+            promotion_reason="clone preview artifact passed factory file validation, DB persistence validation, and finalizer success contract",
+        )
+        return job.runtime_json
     except Exception:
         db.rollback()
         raise
@@ -175,16 +158,10 @@ def process_clone_preview_job(self, job_id: str) -> dict:
         _update_job(job_id, status='processing', started_at=datetime.now(UTC))
         execution = _execute_clone_preview(job_id)
         if not execution.success:
-            raise RuntimeError(execution.incident.get("error_message") if execution.incident else execution.validation.get("error"))
-        result = {
-            "preview_url": execution.preview_url,
-            "artifacts": [artifact.model_dump() for artifact in execution.artifacts],
-            "artifact_contract_version": execution.artifact_contract_version,
-            "factory_validation": execution.validation,
-            "factory_metrics": execution.metrics,
-        }
-        _mark_clone_preview_succeeded_with_artifacts(job_id, result=result)
-        return {'job_id': job_id, 'status': 'succeeded', **result}
+            raise RuntimeError(_factory_error(execution))
+
+        runtime_json = _finalize_clone_preview_success(job_id, execution=execution)
+        return {'job_id': job_id, 'status': 'succeeded', **runtime_json}
     except Exception as exc:
         logger.exception("Clone task failed for %s", job_id)
         if self.request.retries >= self.max_retries:

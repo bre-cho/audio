@@ -164,3 +164,55 @@ def test_clone_preview_worker_creates_and_persists_contract_artifact(db_session,
     assert outputs[0].checksum == artifact["checksum"]
     assert outputs[0].promotion_status == "persisted"
     assert outputs[0].waveform_json["artifact_id"] == artifact["artifact_id"]
+
+
+def test_tts_generate_worker_uses_db_workflow_type_source_of_truth(db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path))
+
+    repo = JobRepository(db_session)
+    job = repo.create(
+        user_id="00000000-0000-0000-0000-000000000001",
+        job_type="tts",
+        workflow_type="tts_generate",
+        request_json={"text": "hello from generate", "voice": "default"},
+    )
+
+    result = process_tts_job.run(str(job.id))
+
+    db_session.expire_all()
+    updated = repo.get(job.id)
+    outputs = (
+        db_session.query(AudioOutput)
+        .filter(AudioOutput.job_id == job.id)
+        .order_by(AudioOutput.output_type.asc())
+        .all()
+    )
+
+    assert result["status"] == "succeeded"
+    assert result["workflow_type"] == "tts_generate"
+    assert updated.status == "succeeded"
+    assert updated.workflow_type == "tts_generate"
+    assert updated.runtime_json["workflow_type"] == "tts_generate"
+    assert len(updated.runtime_json["artifacts"]) == 2
+    assert {row.output_type for row in outputs} == {"output", "preview"}
+
+
+def test_tts_preview_worker_uses_db_workflow_type_even_when_job_type_is_tts(db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path))
+
+    repo = JobRepository(db_session)
+    job = repo.create(
+        user_id="00000000-0000-0000-0000-000000000001",
+        job_type="tts",
+        workflow_type="tts_preview",
+        request_json={"text": "hello from preview", "voice": "default"},
+    )
+
+    result = process_tts_job.run(str(job.id))
+
+    db_session.expire_all()
+    updated = repo.get(job.id)
+
+    assert result["status"] == "succeeded"
+    assert result["workflow_type"] == "tts_preview"
+    assert updated.runtime_json["workflow_type"] == "tts_preview"

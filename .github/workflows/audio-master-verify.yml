@@ -79,6 +79,13 @@ jobs:
           REPORT_DIR: .audio_factory_report
         run: |
           python scripts/ci/e2e_conversation.py
+      - name: Seed clone preview voice
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai
+          PYTHONPATH: backend
+          E2E_CLONE_PREVIEW_VOICE_ID: 00000000-0000-0000-0000-000000000123
+        run: |
+          python scripts/ci/seed_clone_preview_voice.py
       - name: E2E clone preview
         env:
           REPORT_DIR: .audio_factory_report

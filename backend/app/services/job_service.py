@@ -6,8 +6,10 @@ from app.workers.audio_tasks import enqueue_tts_job, enqueue_batch_job
 from app.workers.clone_tasks import enqueue_clone_job, enqueue_clone_preview_job
 
 RETRYABLE_JOB_TYPES = {
+    "tts",
     "tts_preview",
     "narration",
+    "conversation",
     "clone",
     "clone_preview",
 }
@@ -43,13 +45,19 @@ class JobService:
         self.repo.db.commit()
         self.repo.db.refresh(job)
 
-        if job.job_type == 'tts_preview':
+        workflow_type = job.workflow_type or job.job_type
+
+        if workflow_type in {'tts_generate', 'tts_preview'} or job.job_type in {'tts', 'tts_preview'}:
             enqueue_tts_job(str(job.id))
-        elif job.job_type == 'narration':
+        elif workflow_type == 'narration' or job.job_type == 'narration':
             enqueue_batch_job(str(job.id))
+        elif workflow_type == 'conversation' or job.job_type == 'conversation':
+            from app.workers.audio_tasks import enqueue_conversation_job
+
+            enqueue_conversation_job(str(job.id))
+        elif workflow_type == 'clone_preview' or job.job_type == 'clone_preview':
+            enqueue_clone_preview_job(str(job.id))
         elif job.job_type == 'clone':
             enqueue_clone_job(str(job.id))
-        elif job.job_type == 'clone_preview':
-            enqueue_clone_preview_job(str(job.id))
 
         return JobStatusOut.model_validate(job)
