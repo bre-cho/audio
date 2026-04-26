@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.audio_factory.artifact_contract import ArtifactContractService
 from app.audio_factory.schemas import AudioArtifactContract, AudioFactoryResult
 from app.models.audio_job import AudioJob
 from app.models.audio_output import AudioOutput
@@ -39,6 +40,9 @@ class AudioJobFinalizer:
         execution: AudioFactoryResult,
         promotion_reason: str,
         provider: str = "internal_genvoice",
+        promotion_actor: str = "system",
+        promotion_role: str = "system",
+        promotion_source: str = "worker",
     ) -> AudioJob:
         job_uuid = UUID(job_id)
         job = db.query(AudioJob).filter(AudioJob.id == job_uuid).one_or_none()
@@ -51,6 +55,9 @@ class AudioJobFinalizer:
             execution=execution,
             promotion_reason=promotion_reason,
             provider=provider,
+            promotion_actor=promotion_actor,
+            promotion_role=promotion_role,
+            promotion_source=promotion_source,
         )
 
         job.status = "succeeded"
@@ -88,6 +95,9 @@ class AudioJobFinalizer:
         execution: AudioFactoryResult,
         promotion_reason: str,
         provider: str,
+        promotion_actor: str,
+        promotion_role: str,
+        promotion_source: str,
     ) -> dict:
         artifacts = [artifact.model_dump() for artifact in execution.artifacts]
         return {
@@ -97,7 +107,13 @@ class AudioJobFinalizer:
             "artifacts": artifacts,
             "factory_validation": execution.validation,
             "factory_metrics": execution.metrics,
-            "promotion_gate": self._promotion_gate(promotion_reason),
+            "promotion_gate": self._promotion_gate(
+                artifacts=execution.artifacts,
+                promotion_reason=promotion_reason,
+                promotion_actor=promotion_actor,
+                promotion_role=promotion_role,
+                promotion_source=promotion_source,
+            ),
             "preview_url": execution.preview_url,
             "output_url": execution.output_url,
         }
@@ -171,21 +187,58 @@ class AudioJobFinalizer:
                     f"DB row promotion_status invalid for artifact={artifact.artifact_id}: {row.promotion_status}"
                 )
 
-    def _promotion_gate(self, promotion_reason: str) -> dict:
+    def _promotion_gate(
+        self,
+        *,
+        artifacts: list[AudioArtifactContract],
+        promotion_reason: str,
+        promotion_actor: str,
+        promotion_role: str,
+        promotion_source: str,
+    ) -> dict:
+        service = ArtifactContractService()
+        authority_pass = service.validate_promotion_authority(
+            role=promotion_role,
+            source=promotion_source,
+        )
+
+        replayability_pass = all(a.replayability_pass for a in artifacts)
+        determinism_pass = all(a.determinism_pass for a in artifacts)
+        drift_budget_pass = all(a.drift_budget_pass for a in artifacts)
+        contract_pass = all(a.contract_pass for a in artifacts)
+        lineage_pass = all(a.lineage_pass for a in artifacts)
+        write_integrity_pass = all(a.write_integrity_pass for a in artifacts)
+
+        all_pass = all(
+            [
+                contract_pass,
+                lineage_pass,
+                write_integrity_pass,
+                replayability_pass,
+                determinism_pass,
+                drift_budget_pass,
+                authority_pass,
+            ]
+        )
+
         return {
-            "contract_pass": True,
-            "lineage_pass": True,
-            "write_integrity_pass": True,
+            "contract_pass": contract_pass,
+            "lineage_pass": lineage_pass,
+            "write_integrity_pass": write_integrity_pass,
             "db_persistence_pass": True,
             "factory_file_validation_pass": True,
             "factory_db_validation_pass": True,
-            "replayability_pass": False,
-            "determinism_pass": False,
-            "drift_budget_pass": False,
-            "replayability_status": "pending",
-            "determinism_status": "pending",
-            "drift_budget_status": "pending",
-            "promotion_status": "contract_verified",
+            "replayability_pass": replayability_pass,
+            "determinism_pass": determinism_pass,
+            "drift_budget_pass": drift_budget_pass,
+            "replayability_status": "pass" if replayability_pass else "fail",
+            "determinism_status": "pass" if determinism_pass else "fail",
+            "drift_budget_status": "within_budget" if drift_budget_pass else "exceeded",
+            "promotion_authority_pass": authority_pass,
+            "promotion_actor": promotion_actor,
+            "promotion_role": promotion_role,
+            "promotion_source": promotion_source,
+            "promotion_status": "contract_verified" if all_pass else "blocked",
             "promotion_reason": promotion_reason,
             "checked_at": datetime.now(UTC).isoformat(),
         }
