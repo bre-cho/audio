@@ -104,6 +104,7 @@ def _create_artifact(
     output_type: str,
     request_json: dict[str, Any] | None,
     duration_seconds: float = 0.5,
+    provider: str = DEFAULT_PROVIDER,
     storage: StorageService | None = None,
 ) -> dict[str, Any]:
     filename = f"{job_id}.{suffix}.wav" if suffix else f"{job_id}.wav"
@@ -124,14 +125,33 @@ def _create_artifact(
         size_bytes=stored.size_bytes,
         checksum=stored.checksum,
         request_json=request_json,
+        provider=provider,
     )
 
 
-def write_audio_artifacts(job_id: str, request_json: dict[str, Any] | None = None) -> dict[str, Any]:
+def write_audio_artifacts(
+    job_id: str,
+    request_json: dict[str, Any] | None = None,
+    provider: str = DEFAULT_PROVIDER,
+) -> dict[str, Any]:
     """Write audio files and return URLs plus truthful artifact contracts."""
     storage = StorageService()
-    preview = _create_artifact(job_id=job_id, suffix="preview", output_type="preview", request_json=request_json, storage=storage)
-    output = _create_artifact(job_id=job_id, suffix="", output_type="output", request_json=request_json, storage=storage)
+    preview = _create_artifact(
+        job_id=job_id,
+        suffix="preview",
+        output_type="preview",
+        request_json=request_json,
+        provider=provider,
+        storage=storage,
+    )
+    output = _create_artifact(
+        job_id=job_id,
+        suffix="",
+        output_type="output",
+        request_json=request_json,
+        provider=provider,
+        storage=storage,
+    )
     return {
         "preview_url": preview["url"],
         "output_url": output["url"],
@@ -140,13 +160,18 @@ def write_audio_artifacts(job_id: str, request_json: dict[str, Any] | None = Non
     }
 
 
-def write_clone_preview_artifact(job_id: str, request_json: dict[str, Any] | None = None) -> dict[str, Any]:
+def write_clone_preview_artifact(
+    job_id: str,
+    request_json: dict[str, Any] | None = None,
+    provider: str = DEFAULT_PROVIDER,
+) -> dict[str, Any]:
     """Write clone preview using the same artifact contract as tts/narration."""
     artifact = _create_artifact(
         job_id=job_id,
         suffix="clone_preview",
         output_type="clone_preview",
         request_json=request_json,
+        provider=provider,
     )
     return {
         "preview_url": artifact["url"],

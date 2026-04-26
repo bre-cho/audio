@@ -4,21 +4,21 @@ import json
 from pathlib import Path
 
 NEXT_ACTIONS = {
-    "provider_failure": "- Check provider status / upstream API quota / retry policy.",
-    "queue_backlog": "- Check Celery worker health, Redis latency, queue depth, stuck jobs.",
-    "ffmpeg_failure": "- Check input media integrity, codec handling, ffmpeg command args.",
-    "infra_down": "- Check container/node/network/storage health.",
-    "test_regression": "- Inspect latest code diff and failing assertions.",
-    "unknown": "- No strong signal found. Inspect workflow logs manually.",
+    "provider_failure": "- Kiem tra trang thai provider / quota API upstream / chinh sach retry.",
+    "queue_backlog": "- Kiem tra suc khoe worker Celery, do tre Redis, do sau hang doi, job bi ket.",
+    "ffmpeg_failure": "- Kiem tra tinh toan ven file media dau vao, xu ly codec, tham so lenh ffmpeg.",
+    "infra_down": "- Kiem tra suc khoe container/node/network/storage.",
+    "test_regression": "- Kiem tra diff code moi nhat va cac assertion dang loi.",
+    "unknown": "- Chua tim thay tin hieu manh. Kiem tra log workflow thu cong.",
 }
 
 
 def _fmt_list(items):
-    return "\n".join(f"- {x}" for x in items) if items else "_none_"
+    return "\n".join(f"- {x}" for x in items) if items else "_khong_co_"
 
 
 def _fmt_dict(d):
-    return "\n".join(f"- {k}: {v}" for k, v in d.items()) if d else "_none_"
+    return "\n".join(f"- {k}: {v}" for k, v in d.items()) if d else "_khong_co_"
 
 
 def main():
@@ -40,7 +40,7 @@ def main():
     actions = data.get("recommended_actions", {})
     primary_act = actions.get("primary", {})
     secondary_act = actions.get("secondary")
-    first_cmd = (primary_act.get("commands") or ["inspect logs"])[0]
+    first_cmd = (primary_act.get("commands") or ["kiem tra log"])[0]
     first_owner = (primary_act.get("owners") or ["oncall"])[0]
     primary_cmds = _fmt_list(primary_act.get("commands", []))
     primary_dash = _fmt_list(primary_act.get("dashboards", []))
@@ -59,7 +59,7 @@ def main():
 
     # v7 — escalation
     esc = data.get("escalation", {})
-    esc_mode = esc.get("mode", "channel_only")
+    esc_mode = esc.get("mode", "chi_kenh")
     esc_sev = esc.get("severity", "P3")
     esc_team = esc.get("mention_team", "oncall")
     dedupe_key = data.get("dedupe_key", "")
@@ -87,7 +87,7 @@ def main():
     # v11 — GitHub Issue sync
     issue_no = parent.get("issue_number")
     issue_url = parent.get("issue_url", "")
-    child_action = child.get("action", "none")
+    child_action = child.get("action", "khong")
 
     # v12 — Slack thread sync
     slack_channel = parent.get("slack_channel_id", "")
@@ -110,145 +110,145 @@ def main():
     # v16 — drift detector
     recon = data.get("state_reconciler", {})
     drift = recon.get("drift", {})
-    drift_level = drift.get("level", "none")
-    drift_action = drift.get("action", "none")
+    drift_level = drift.get("level", "khong")
+    drift_action = drift.get("action", "khong")
     drift_reason = drift.get("reason", "")
     drift_corruption = drift.get("corruption_type", "")
 
-    md = f"""# Auto Incident Report
+    md = f"""# Bao Cao Su Co Tu Dong
 
 - Workflow: `{data.get('workflow_name', '')}`
 - Run ID: `{data.get('run_id', '')}`
-- Root cause: `{root}`
-- Confidence: `{confidence}`
-- Secondary cause: `{secondary_cause}`
-- Escalation mode: `{esc_mode}`
-- Severity: `{esc_sev}`
-- Mention team: `{esc_team}`
-- First action: `{first_cmd}`
-- Ping first: `{first_owner}`
-- Click first: {click_first}
-- Dedupe key: `{dedupe_key}`
-- Repeat count (30m): `{repeat_count}`
-- Override applied: `{repeat_override}`
-- Cluster key: `{cluster_key}`
-- Storm control: `{storm_active}`
-- Cluster count (30m): `{storm_count}`
-- Parent incident: `{parent_key}`
-- Parent status: `{parent_status_val}`
-- Child action: `{child_action}`
-- Parent issue: `#{issue_no}`
-- Parent issue URL: {issue_url}
-- Slack channel: `{slack_channel}`
+- Nguyen nhan goc: `{root}`
+- Do tin cay: `{confidence}`
+- Nguyen nhan phu: `{secondary_cause}`
+- Che do nang cap: `{esc_mode}`
+- Muc do: `{esc_sev}`
+- Nhom duoc nhac den: `{esc_team}`
+- Hanh dong dau tien: `{first_cmd}`
+- Nguoi ping dau tien: `{first_owner}`
+- Duong dan uu tien: {click_first}
+- Khoa chong trung lap: `{dedupe_key}`
+- So lan lap lai (30p): `{repeat_count}`
+- Da ap dung ghi de: `{repeat_override}`
+- Khoa cum su co: `{cluster_key}`
+- Trang thai storm control: `{storm_active}`
+- So su co trong cum (30p): `{storm_count}`
+- Su co cha: `{parent_key}`
+- Trang thai su co cha: `{parent_status_val}`
+- Hanh dong su co con: `{child_action}`
+- Issue cha: `#{issue_no}`
+- URL issue cha: {issue_url}
+- Kenh Slack: `{slack_channel}`
 - Slack thread_ts: `{slack_thread_ts}`
-- Mapping source: `{mapping_source}`
-- Mapping lock: `{mapping_lock}`
-- Drift level: `{drift_level}`
-- Drift action: `{drift_action}`
-- Drift reason: `{drift_reason}`
+- Nguon anh xa: `{mapping_source}`
+- Khoa anh xa: `{mapping_lock}`
+- Muc do drift: `{drift_level}`
+- Hanh dong drift: `{drift_action}`
+- Ly do drift: `{drift_reason}`
 
-## Summary
+## Tom Tat
 {data.get('summary', '')}
 
-## Escalation Decision
-- If `page_oncall`: ping real oncall now
-- If `channel_only`: post channel only, no pager
-- If `suppress`: keep artifact/report only unless repeated
+## Quyet Dinh Nang Cap
+- Neu `page_oncall`: ping oncall that ngay
+- Neu `channel_only`: chi gui vao kenh, khong goi pager
+- Neu `suppress`: chi luu artifact/bao cao neu chua lap lai
 
-## Repeat-Incident Policy
-- 1x: channel_only
-- 2x / 30m: force `page_oncall`
-- 3x / 30m: bump severity by 1 level
+## Chinh Sach Su Co Lap Lai
+- 1 lan: channel_only
+- 2 lan / 30p: bat buoc `page_oncall`
+- 3 lan / 30p: tang muc do len 1 cap
 
-## Parent Incident Lifecycle
-- opened → first clustered incident
-- updated → more child incidents still arriving
-- stabilized → no fresh child spike, but still inside window
-- resolved → quiet long enough to close cluster
-- Child incidents (30m): `{parent_cluster_count}`
-- Last seen age (sec): `{last_seen_age}`
+## Vong Doi Su Co Cha
+- opened → su co dau tien trong cum
+- updated → tiep tuc co su co con moi
+- stabilized → khong con dot tang moi, nhung van trong cua so theo doi
+- resolved → yen lang du lau de dong cum su co
+- Su co con (30p): `{parent_cluster_count}`
+- Thoi gian lan cuoi xuat hien (giay): `{last_seen_age}`
 
-## Parent Sync
-- New clustered incidents should update the same parent issue
-- Do not open a new issue when `parent_incident_key` already exists
+## Dong Bo Su Co Cha
+- Su co con trong cung cum phai cap nhat cung mot issue cha
+- Khong mo issue moi khi `parent_incident_key` da ton tai
 
-## Slack Thread Sync
-- First parent incident opens root Slack message
-- Child incidents reply into the same thread
+## Dong Bo Chuoi Slack
+- Su co cha dau tien tao tin nhan goc tren Slack
+- Cac su co con tra loi trong cung mot thread
 
-## Source of Truth
-- GitHub Issue marker is authoritative for parent mapping
-- Slack thread creation must read issue mapping first
-- Memory file is a cache only; do not treat it as lock source
+## Nguon Su That
+- Marker GitHub Issue la nguon quyen uy de anh xa su co cha
+- Tao thread Slack phai doc anh xa tu issue truoc
+- File memory chi la cache, khong duoc xem la nguon khoa
 
-## Drift Policy
-- `safe_auto_fix` → repaired automatically; no further action needed
-- `needs_retry` → transient external lookup failure; retry sync/reconcile steps
-- `needs_human_review` → multi-source state corruption; escalate to SRE
+## Chinh Sach Drift
+- `safe_auto_fix` → da sua tu dong, khong can thao tac them
+- `needs_retry` → loi lookup ben ngoai tam thoi; thu lai buoc dong bo/reconcile
+- `needs_human_review` → sai lech trang thai da nguon; nang cap cho SRE
 
-## Ranked Causes
+## Xep Hang Nguyen Nhan
 {ranked_lines}
 
-## Evidence
+## Bang Chung
 {evidence_lines}
 
-## Recommended Actions (Primary)
-### Commands
+## Hanh Dong De Xuat (Chinh)
+### Lenh
 {primary_cmds}
 
-### Dashboards
+### Dashboard
 {primary_dash}
 
-### Services to Check
+### Dich Vu Can Kiem Tra
 {primary_srv}
 
-### Ping First
+### Nguoi Can Ping Dau Tien
 {primary_own}
 """
 
     if secondary_act:
-        md += "\n## Secondary Actions\n" + _fmt_list(secondary_act.get("commands", []))
+        md += "\n## Hanh Dong Phu\n" + _fmt_list(secondary_act.get("commands", []))
 
     if storm_active:
-        md += f"\n## Storm Control\n- Parent incident mode enabled\n- Reason: `{storm_reason}`\n"
+        md += f"\n## Storm Control\n- Da bat che do su co cha\n- Ly do: `{storm_reason}`\n"
 
     if drift_corruption:
-        md += f"\n## State Corruption\n- Corruption type: `{drift_corruption}`\n"
+        md += f"\n## Sai Lech Trang Thai\n- Loai sai lech: `{drift_corruption}`\n"
 
     md += f"""
-## Linked Resources (Primary)
+## Tai Nguyen Lien Ket (Chinh)
 - Runbook: {runbook}
 
-### Dashboards
+### Dashboard
 {dash_lines}
 
-### Logs
+### Log
 {log_lines}
 
-### Chat / Oncall
+### Kenh Chat / Oncall
 {chat_lines}
 """
 
     if link_secondary:
-        md += "\n## Linked Resources (Secondary)\n- Runbook: " + str(
+        md += "\n## Tai Nguyen Lien Ket (Phu)\n- Runbook: " + str(
             link_secondary.get("runbook", "")
         )
 
     md += f"""
-## Suggested next action
+## Goi Y Hanh Dong Tiep Theo
 {NEXT_ACTIONS.get(root, NEXT_ACTIONS['unknown'])}
 
 ## Finalizer
-- Status: `{finalizer_status}`
-- Postmortem seed: `{postmortem_seed}`
+- Trang thai: `{finalizer_status}`
+- Mam postmortem: `{postmortem_seed}`
 
-## Knowledge Memory
-- Fingerprint: `{km_fp}`
-- Total patterns stored: `{km_count}`
+## Bo Nho Tri Thuc
+- Dau van tay mau: `{km_fp}`
+- Tong so mau da luu: `{km_count}`
 """
 
     if parent.get("status") == "resolved":
-        md += "\n## Closure Handoff\n- Parent incident is resolved\n- Postmortem seed should be reviewed before archival\n"
+        md += "\n## Ban Giao Dong Su Co\n- Su co cha da duoc resolve\n- Can xem lai mam postmortem truoc khi luu tru\n"
 
     Path(args.output).write_text(md, encoding="utf-8")
     print(md)

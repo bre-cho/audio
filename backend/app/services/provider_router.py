@@ -13,4 +13,4 @@ class ProviderRouter:
             return MinimaxProvider()
         if provider_code == 'internal_genvoice':
             return InternalGenVoiceProvider()
-        raise ValueError(f'Unsupported provider: {provider_code}')
+        raise ValueError(f'Nha cung cap khong duoc ho tro: {provider_code}')

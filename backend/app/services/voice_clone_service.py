@@ -18,7 +18,7 @@ class VoiceCloneService:
 
     def submit_clone(self, payload: VoiceCloneCreateRequest, idempotency_key: str | None = None) -> JobStatusOut:
         if not payload.consent_confirmed:
-            raise ValueError('consent_confirmed must be true')
+            raise ValueError('consent_confirmed phai la true')
         job, created = self.jobs.create_or_get(
             user_id=self.default_user_id,
             job_type='clone',
@@ -30,7 +30,7 @@ class VoiceCloneService:
                 user_id=self.default_user_id,
                 delta_credits=-1000,
                 event_type='reserve',
-                note='voice clone reserve',
+                note='giu cho clone giong noi',
             )
             enqueue_clone_job(str(job.id))
         return JobStatusOut.model_validate(job)

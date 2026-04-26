@@ -9,7 +9,7 @@ from app.core.config import ARTIFACT_ROOT
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title='Audio AI System API', version='0.1.0')
+    app = FastAPI(title='API He thong AI Am thanh', version='0.1.0')
 
     @app.get('/healthz', tags=['health'])
     async def healthcheck() -> dict[str, str]:

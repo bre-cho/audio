@@ -1,19 +1,19 @@
-# Incident Report Template
+# Mẫu Báo Cáo Sự Cố
 
-## Executive summary
-- What failed
-- User impact
-- Current status
+## Tóm tắt điều hành
+- Điều gì đã lỗi
+- Ảnh hưởng đến người dùng
+- Trạng thái hiện tại
 
-## Likely root cause
-- Suspected component
-- Evidence
+## Nguyên nhân gốc có khả năng cao
+- Thành phần bị nghi ngờ
+- Bằng chứng
 
-## Mitigation
-- What was done
-- What remains
+## Giảm thiểu
+- Đã thực hiện những gì
+- Còn lại những gì
 
-## Follow-up
-- Permanent fix
-- Owner
-- Deadline
+## Theo dõi sau sự cố
+- Bản sửa lỗi vĩnh viễn
+- Người phụ trách
+- Hạn hoàn thành

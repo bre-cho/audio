@@ -38,6 +38,12 @@ class ProjectService:
         return {'script_asset_id': str(asset.id)}
 
     def submit_batch_generate(self, project_id: UUID) -> JobStatusOut:
-        job = self.jobs.create(user_id=self.default_user_id, job_type='batch', request_json={'project_id': str(project_id)}, project_id=project_id)
+        job = self.jobs.create(
+            user_id=self.default_user_id,
+            job_type='narration',
+            workflow_type='narration',
+            request_json={'project_id': str(project_id)},
+            project_id=project_id,
+        )
         enqueue_batch_job(str(job.id))
         return JobStatusOut.model_validate(job)

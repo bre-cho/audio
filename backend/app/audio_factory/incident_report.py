@@ -29,9 +29,9 @@ class IncidentReportService:
         name = error.__class__.__name__
 
         if name == "SchemaGuardError":
-            return "Run migration or update DB schema before deploy."
+            return "Chay migration hoac cap nhat schema DB truoc khi deploy."
         if name == "ArtifactValidationError":
-            return "Check artifact generation, checksum, storage write, and DB persistence."
+            return "Kiem tra sinh artifact, checksum, ghi storage va du lieu luu DB."
         if name == "FileNotFoundError":
-            return "Check provider output path and storage handoff."
-        return "Inspect worker logs and factory report."
+            return "Kiem tra duong dan output cua provider va buoc ban giao cho storage."
+        return "Kiem tra log worker va bao cao factory."

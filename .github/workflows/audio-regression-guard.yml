@@ -74,3 +74,15 @@ jobs:
             tests/test_audio_worker_artifact_guard.py \
             tests/test_worker_retry_state_semantics.py \
             -q
+
+      - name: Coverage gate (audio regression subset)
+        working-directory: backend
+        run: |
+          pytest \
+            tests/test_audio_regression_guard.py \
+            tests/test_audio_worker_artifact_guard.py \
+            tests/test_worker_retry_state_semantics.py \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-fail-under=70 \
+            -q

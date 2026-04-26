@@ -8,6 +8,7 @@ from app.audio_factory import AudioFactoryExecutor, AudioJobFinalizer, AudioTask
 from app.db.session import SessionLocal
 from app.models.audio_job import AudioJob
 from app.services.audio_artifact_service import write_audio_artifacts
+from app.services.audio_provider_router import resolve_audio_provider
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,15 @@ logger = logging.getLogger(__name__)
 class _WorkerAudioRuntime:
     def run(self, task: AudioTaskRequest, workflow_spec: dict) -> dict:
         del workflow_spec
-        return write_audio_artifacts(task.source_job_id or "", request_json=task.request_json)
+        provider = resolve_audio_provider(
+            requested_provider=task.provider,
+            default_provider="internal_genvoice",
+        )
+        return write_audio_artifacts(
+            task.source_job_id or "",
+            request_json=task.request_json,
+            provider=provider,
+        )
 
 
 def _update_job(job_id: str, **kwargs) -> None:
@@ -101,7 +110,7 @@ def _execute_factory(job_id: str, fallback_workflow_type: AudioWorkflowType):
         db.close()
 
 
-def _finalize_job_success(job_id: str, *, execution, promotion_reason: str) -> dict:
+def _finalize_job_success(job_id: str, *, execution, promotion_reason: str, provider: str) -> dict:
     db = SessionLocal()
     try:
         job = AudioJobFinalizer().finalize_success(
@@ -109,6 +118,7 @@ def _finalize_job_success(job_id: str, *, execution, promotion_reason: str) -> d
             job_id=job_id,
             execution=execution,
             promotion_reason=promotion_reason,
+            provider=provider,
         )
         return job.runtime_json
     except Exception:
@@ -122,6 +132,13 @@ def _factory_error(execution) -> str:
     if execution.incident:
         return execution.incident.get("error_message") or str(execution.incident)
     return execution.validation.get("error") or str(execution.validation)
+
+
+def _provider_from_execution(execution, *, fallback: str = "internal_genvoice") -> str:
+    artifacts = execution.artifacts or []
+    if artifacts and artifacts[0].provider:
+        return artifacts[0].provider
+    return fallback
 
 
 def enqueue_tts_job(job_id: str) -> None:
@@ -148,6 +165,7 @@ def process_tts_job(self, job_id: str) -> dict:
             job_id,
             execution=execution,
             promotion_reason="artifacts passed factory file validation, DB persistence validation, and finalizer success contract",
+            provider=_provider_from_execution(execution),
         )
         return {"job_id": job_id, "status": "succeeded", **runtime_json}
     except Exception as exc:
@@ -171,6 +189,7 @@ def process_conversation_job(self, job_id: str) -> dict:
             job_id,
             execution=execution,
             promotion_reason="conversation artifacts passed factory file validation, DB persistence validation, and finalizer success contract",
+            provider=_provider_from_execution(execution),
         )
         return {"job_id": job_id, "status": "succeeded", **runtime_json}
     except Exception as exc:
@@ -194,6 +213,7 @@ def process_batch_job(self, job_id: str) -> dict:
             job_id,
             execution=execution,
             promotion_reason="narration artifacts passed factory file validation, DB persistence validation, and finalizer success contract",
+            provider=_provider_from_execution(execution),
         )
         return {"job_id": job_id, "status": "succeeded", **runtime_json}
     except Exception as exc:

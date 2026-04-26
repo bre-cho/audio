@@ -25,7 +25,7 @@ def get_voice(voice_id: UUID, db: Session = Depends(get_db)) -> VoiceOut:
     repo = VoiceRepository(db)
     voice = repo.get(voice_id)
     if not voice:
-        raise HTTPException(status_code=404, detail='Voice not found')
+        raise HTTPException(status_code=404, detail='Khong tim thay giong noi')
     return voice
 
 
@@ -34,5 +34,5 @@ def update_voice(voice_id: UUID, payload: VoiceUpdate, db: Session = Depends(get
     repo = VoiceRepository(db)
     voice = repo.update(voice_id, payload)
     if not voice:
-        raise HTTPException(status_code=404, detail='Voice not found')
+        raise HTTPException(status_code=404, detail='Khong tim thay giong noi')
     return voice

@@ -74,6 +74,14 @@ jobs:
           PYTHONPATH: backend
         run: |
           SKIP_STACK_UP=1 VERIFY_RUNTIME=1 bash scripts/ci/verify_audio_patch.sh
+      - name: Coverage gate (backend)
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai
+          PYTHONPATH: backend
+          ARTIFACT_ROOT: ${{ github.workspace }}/artifacts
+        run: |
+          cd backend
+          pytest --cov=app --cov-report=term-missing --cov-fail-under=86 -q tests
       - name: E2E conversation
         env:
           REPORT_DIR: .audio_factory_report

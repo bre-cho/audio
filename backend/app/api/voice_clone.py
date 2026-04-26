@@ -12,7 +12,7 @@ router = APIRouter()
 
 @router.post('/upload', response_model=VoiceCloneUploadResponse)
 def upload_clone_sample() -> VoiceCloneUploadResponse:
-    return VoiceCloneUploadResponse(file_id='replace-with-upload-handler', upload_url=None)
+    return VoiceCloneUploadResponse(file_id='thay-bang-bo-xu-ly-tai-len', upload_url=None)
 
 
 @router.post('/create', response_model=JobStatusOut)

@@ -17,7 +17,7 @@ def list_jobs(db: Session = Depends(get_db)) -> list[JobStatusOut]:
 def get_job(job_id: UUID, db: Session = Depends(get_db)) -> JobStatusOut:
     job = JobService(db).get_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail='Job not found')
+        raise HTTPException(status_code=404, detail='Khong tim thay job')
     return job
 
 
@@ -28,4 +28,4 @@ def retry_job(job_id: UUID, db: Session = Depends(get_db)) -> JobStatusOut:
     except UnsupportedRetryJobTypeError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except ValueError:
-        raise HTTPException(status_code=404, detail='Job not found')
+        raise HTTPException(status_code=404, detail='Khong tim thay job')

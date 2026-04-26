@@ -18,39 +18,39 @@ def load_json(p):
 
 ACTION_MAP = {
     "provider_failure": {
-        "commands": ["check provider quota/status", "retry failed job once"],
-        "dashboards": ["provider api latency", "provider error rate"],
-        "services": ["provider adapter", "webhook/egress"],
+        "commands": ["kiem tra quota/trang thai provider", "thu lai mot lan cho job that bai"],
+        "dashboards": ["do tre API provider", "ti le loi provider"],
+        "services": ["adapter provider", "webhook/egress"],
         "owners": ["ai-platform", "integrations"],
     },
     "queue_backlog": {
         "commands": ["celery inspect active", "redis-cli info", "scale worker"],
-        "dashboards": ["queue depth", "worker concurrency"],
-        "services": ["celery worker", "redis"],
+        "dashboards": ["do sau hang doi", "do dong thoi worker"],
+        "services": ["worker celery", "redis"],
         "owners": ["platform", "backend"],
     },
     "ffmpeg_failure": {
-        "commands": ["inspect ffmpeg stderr", "re-run render with debug args"],
-        "dashboards": ["render failure rate", "media pipeline"],
-        "services": ["render worker", "ffmpeg wrapper"],
+        "commands": ["kiem tra stderr ffmpeg", "chay lai render voi tham so debug"],
+        "dashboards": ["ti le render loi", "pipeline media"],
+        "services": ["worker render", "wrapper ffmpeg"],
         "owners": ["media", "backend"],
     },
     "infra_down": {
-        "commands": ["kubectl get pods", "kubectl describe failing pod", "check disk/memory"],
-        "dashboards": ["node health", "container restarts"],
+        "commands": ["kubectl get pods", "kubectl describe pod dang loi", "kiem tra disk/memory"],
+        "dashboards": ["suc khoe node", "so lan container restart"],
         "services": ["k8s/api", "storage/network"],
         "owners": ["sre", "platform"],
     },
     "test_regression": {
-        "commands": ["open failing test logs", "git diff HEAD~1..HEAD", "re-run failed suite"],
-        "dashboards": ["ci failures", "test trend"],
-        "services": ["ci runner", "test suite"],
+        "commands": ["mo log test dang loi", "git diff HEAD~1..HEAD", "chay lai bo test that bai"],
+        "dashboards": ["loi CI", "xu huong test"],
+        "services": ["ci runner", "bo test"],
         "owners": ["backend", "qa"],
     },
     "unknown": {
-        "commands": ["open workflow logs", "inspect latest artifacts"],
-        "dashboards": ["workflow overview"],
-        "services": ["unknown"],
+        "commands": ["mo log workflow", "kiem tra artifact moi nhat"],
+        "dashboards": ["tong quan workflow"],
+        "services": ["khong_xac_dinh"],
         "owners": ["oncall"],
     },
 }
@@ -253,11 +253,11 @@ def main():
         primary_actions["commands"] = matched_pattern["commands"]
     if root == "ffmpeg_failure" and secondary_cause == "provider_failure":
         primary_actions["commands"].insert(
-            0, "check whether corrupt upstream asset caused ffmpeg decode failure"
+            0, "kiem tra xem asset upstream hong co gay loi giai ma ffmpeg khong"
         )
     if root == "queue_backlog" and secondary_cause == "infra_down":
         primary_actions["commands"].insert(
-            0, "check whether worker/node pressure is causing queue drain failure"
+            0, "kiem tra xem tai worker/node co gay nghen xa hang doi hay khong"
         )
     secondary_actions = ACTION_MAP.get(secondary_cause) if secondary_cause else None
 
@@ -287,6 +287,11 @@ def main():
     mention_team = (primary_actions.get("owners") or ["oncall"])[0]
     dedupe_key = f'{workflow_name}::{root}::{secondary_cause}::{escalation["severity"]}'
 
+    summary_vi = (
+        f"{workflow_name} that bai; nguyen_nhan_goc={root}; "
+        f"do_tin_cay={confidence}; nguyen_nhan_phu={secondary_cause}"
+    )
+
     out = {
         "workflow_name": workflow_name,
         "run_id": run_id,
@@ -296,10 +301,7 @@ def main():
         "ranked_causes": [{"cause": k, "score": v} for k, v in ordered],
         "scores": scores,
         "evidence": evidence_snippets[:5],
-        "summary": (
-            f"{workflow_name} failed; root_cause={root}; "
-            f"confidence={confidence}; secondary_cause={secondary_cause}"
-        ),
+        "summary": summary_vi,
         "recommended_actions": {
             "primary": primary_actions,
             "secondary": secondary_actions,

@@ -33,10 +33,10 @@ class JobService:
     def retry_job(self, job_id: UUID) -> JobStatusOut:
         job = self.repo.get(job_id)
         if not job:
-            raise ValueError('Job not found')
+            raise ValueError('Khong tim thay job')
 
         if job.job_type not in RETRYABLE_JOB_TYPES:
-            raise UnsupportedRetryJobTypeError(f"Unsupported job type for retry: {job.job_type}")
+            raise UnsupportedRetryJobTypeError(f"Loai job khong ho tro retry: {job.job_type}")
 
         job.status = 'queued'
         job.error_code = None

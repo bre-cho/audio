@@ -23,7 +23,7 @@ def list_projects(db: Session = Depends(get_db)) -> list[ProjectOut]:
 def get_project(project_id: UUID, db: Session = Depends(get_db)) -> ProjectOut:
     project = ProjectService(db).get_project(project_id)
     if not project:
-        raise HTTPException(status_code=404, detail='Project not found')
+        raise HTTPException(status_code=404, detail='Khong tim thay du an')
     return project
 
 
@@ -31,7 +31,7 @@ def get_project(project_id: UUID, db: Session = Depends(get_db)) -> ProjectOut:
 def update_project(project_id: UUID, payload: ProjectUpdate, db: Session = Depends(get_db)) -> ProjectOut:
     project = ProjectService(db).update_project(project_id, payload)
     if not project:
-        raise HTTPException(status_code=404, detail='Project not found')
+        raise HTTPException(status_code=404, detail='Khong tim thay du an')
     return project
 
 

@@ -8,6 +8,7 @@ from app.audio_factory import AudioFactoryExecutor, AudioJobFinalizer, AudioTask
 from app.db.session import SessionLocal
 from app.models.audio_job import AudioJob
 from app.services.audio_artifact_service import write_clone_preview_artifact
+from app.services.audio_provider_router import resolve_audio_provider
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,15 @@ logger = logging.getLogger(__name__)
 class _ClonePreviewRuntime:
     def run(self, task: AudioTaskRequest, workflow_spec: dict) -> dict:
         del workflow_spec
-        return write_clone_preview_artifact(task.source_job_id or "", request_json=task.request_json)
+        provider = resolve_audio_provider(
+            requested_provider=task.provider,
+            default_provider="internal_genvoice",
+        )
+        return write_clone_preview_artifact(
+            task.source_job_id or "",
+            request_json=task.request_json,
+            provider=provider,
+        )
 
 
 def _update_job(job_id: str, **kwargs) -> None:
@@ -99,7 +108,7 @@ def _factory_error(execution) -> str:
     return execution.validation.get("error") or str(execution.validation)
 
 
-def _finalize_clone_preview_success(job_id: str, *, execution) -> dict:
+def _finalize_clone_preview_success(job_id: str, *, execution, provider: str) -> dict:
     db = SessionLocal()
     try:
         job = AudioJobFinalizer().finalize_success(
@@ -107,6 +116,7 @@ def _finalize_clone_preview_success(job_id: str, *, execution) -> dict:
             job_id=job_id,
             execution=execution,
             promotion_reason="clone preview artifact passed factory file validation, DB persistence validation, and finalizer success contract",
+            provider=provider,
         )
         return job.runtime_json
     except Exception:
@@ -160,7 +170,9 @@ def process_clone_preview_job(self, job_id: str) -> dict:
         if not execution.success:
             raise RuntimeError(_factory_error(execution))
 
-        runtime_json = _finalize_clone_preview_success(job_id, execution=execution)
+        artifacts = execution.artifacts or []
+        provider = artifacts[0].provider if artifacts and artifacts[0].provider else "internal_genvoice"
+        runtime_json = _finalize_clone_preview_success(job_id, execution=execution, provider=provider)
         return {'job_id': job_id, 'status': 'succeeded', **runtime_json}
     except Exception as exc:
         logger.exception("Clone task failed for %s", job_id)
