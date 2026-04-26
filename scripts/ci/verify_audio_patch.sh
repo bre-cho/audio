@@ -91,7 +91,7 @@ assert_contract_code_present() {
   grep -q "sha256" backend/app/services/audio_artifact_service.py \
     && ok "artifact checksum code present" \
     || fail "artifact checksum code missing"
-  grep -q "promotion_gate" backend/app/workers/audio_tasks.py \
+  grep -q "promotion_gate" backend/app/audio_factory/job_finalizer.py \
     && ok "promotion gate runtime metadata present" \
     || fail "promotion gate runtime metadata missing"
   grep -q "StorageService" backend/app/services/audio_artifact_service.py \
@@ -103,7 +103,7 @@ assert_contract_code_present() {
   grep -q "workflow_type" backend/app/models/audio_job.py \
     && ok "workflow_type persisted on audio jobs" \
     || fail "workflow_type missing on audio jobs"
-  grep -q "contract_verified" backend/app/workers/audio_tasks.py \
+  grep -q "contract_verified" backend/app/audio_factory/job_finalizer.py \
     && ok "truthful contract status present" \
     || fail "truthful contract status missing"
 }

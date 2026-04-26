@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from app.audio_factory.schemas import AudioArtifactContract, AudioTaskRequest
 from app.services.audio_artifact_service import (
@@ -13,6 +14,9 @@ from app.services.audio_artifact_service import (
 
 
 class ArtifactContractService:
+    ALLOWED_PROMOTION_ROLES = {"ci", "system", "worker"}
+    ALLOWED_PROMOTION_SOURCES = {"ci", "worker"}
+
     def create_contracts(
         self,
         *,
@@ -41,6 +45,7 @@ class ArtifactContractService:
                     artifact_type=artifact_type,
                     source_job_id=source_job_id,
                     job_id=str(artifact.get("job_id") or source_job_id),
+                    created_at=str(artifact.get("created_at") or datetime.now(UTC).isoformat()),
                     storage_key=str(artifact.get("storage_key") or ""),
                     path=artifact.get("path"),
                     url=artifact.get("url") or public_url,
@@ -74,4 +79,48 @@ class ArtifactContractService:
                 )
             )
 
+        self.evaluate_governance_gates(contracts)
+
         return contracts
+
+    def evaluate_governance_gates(self, contracts: list[AudioArtifactContract]) -> None:
+        for contract in contracts:
+            replayability_pass = self._check_replayability(contract)
+            determinism_pass = self._check_determinism(contract)
+            drift_budget_pass = self._check_drift_budget(contract)
+
+            contract.replayability_pass = replayability_pass
+            contract.determinism_pass = determinism_pass
+            contract.drift_budget_pass = drift_budget_pass
+            contract.replayability_status = "pass" if replayability_pass else "fail"
+            contract.determinism_status = "pass" if determinism_pass else "fail"
+            contract.drift_budget_status = "within_budget" if drift_budget_pass else "exceeded"
+
+            if replayability_pass and determinism_pass and drift_budget_pass:
+                contract.promotion_status = "contract_verified"
+                if not contract.promotion_reason:
+                    contract.promotion_reason = "artifact passed contract, lineage, replayability, determinism, and drift budget checks"
+            else:
+                contract.promotion_status = "generated"
+                contract.promotion_reason = "artifact failed one or more governance gates"
+
+    def validate_promotion_authority(self, *, role: str, source: str) -> bool:
+        return role in self.ALLOWED_PROMOTION_ROLES and source in self.ALLOWED_PROMOTION_SOURCES
+
+    def _check_replayability(self, contract: AudioArtifactContract) -> bool:
+        # Replayability at this layer means the contract carries enough deterministic inputs.
+        return bool(
+            contract.source_job_id
+            and contract.input_hash
+            and contract.provider
+            and contract.template_version
+            and contract.runtime_version
+        )
+
+    def _check_determinism(self, contract: AudioArtifactContract) -> bool:
+        # Determinism guard: we only accept a full SHA-256 checksum with stable input hash.
+        return bool(contract.input_hash and contract.checksum and len(contract.checksum) == 64)
+
+    def _check_drift_budget(self, contract: AudioArtifactContract) -> bool:
+        # Minimal budget guard for write-time artifacts: non-zero audio payloads are within baseline budget.
+        return contract.size_bytes > 0

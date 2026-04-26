@@ -40,6 +40,7 @@ class AudioArtifactContract(BaseModel):
     artifact_type: str
     source_job_id: str
     job_id: str
+    created_at: str | None = None
 
     storage_key: str
     path: str | None = None
