@@ -1,5 +1,20 @@
 from fastapi import APIRouter
-from app.api import audio, billing, conversation, jobs, observability, projects, providers, tts, voice_clone, voices
+from app.api import (
+	audio,
+	baselines,
+	billing,
+	conversation,
+	decisions,
+	jobs,
+	observability,
+	projects,
+	providers,
+	recovery,
+	remediation,
+	tts,
+	voice_clone,
+	voices,
+)
 
 api_router = APIRouter()
 api_router.include_router(audio.router, prefix='/audio', tags=['audio'])
@@ -10,5 +25,9 @@ api_router.include_router(conversation.router, prefix='/conversation', tags=['co
 api_router.include_router(voice_clone.router, prefix='/voice-clone', tags=['voice-clone'])
 api_router.include_router(projects.router, prefix='/projects', tags=['projects'])
 api_router.include_router(jobs.router, prefix='/jobs', tags=['jobs'])
+api_router.include_router(baselines.router, prefix='/baselines', tags=['baselines'])
+api_router.include_router(decisions.router, prefix='/decisions', tags=['decisions'])
+api_router.include_router(remediation.router, prefix='/remediation', tags=['remediation'])
+api_router.include_router(recovery.router, prefix='/recovery', tags=['recovery'])
 api_router.include_router(billing.router, prefix='/billing', tags=['billing'])
 api_router.include_router(observability.router, prefix='/observability', tags=['observability'])
