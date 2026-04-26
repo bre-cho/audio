@@ -14,12 +14,12 @@ def _assert_contract_metadata(artifact: dict, *, expected_job_id: str, expected_
     assert artifact["lineage_pass"] is True
     assert artifact["write_integrity_pass"] is True
     assert artifact["promotion_status"] == "contract_verified"
-    assert artifact["replayability_status"] == "pending"
-    assert artifact["determinism_status"] == "pending"
-    assert artifact["drift_budget_status"] == "pending"
-    assert artifact["replayability_pass"] is False
-    assert artifact["determinism_pass"] is False
-    assert artifact["drift_budget_pass"] is False
+    assert artifact["replayability_status"] == "pass"
+    assert artifact["determinism_status"] == "pass"
+    assert artifact["drift_budget_status"] == "within_budget"
+    assert artifact["replayability_pass"] is True
+    assert artifact["determinism_pass"] is True
+    assert artifact["drift_budget_pass"] is True
     assert isinstance(artifact["size_bytes"], int)
     assert artifact["size_bytes"] > 0
     assert isinstance(artifact["checksum"], str)
