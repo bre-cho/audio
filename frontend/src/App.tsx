@@ -33,16 +33,16 @@ import { api } from './api';
 import type { JobStatusOut, ProjectOut, ProviderCode, SettingsState, VoiceOut, Screen } from './types';
 
 const fallbackVoices: VoiceOut[] = [
-  { id: 'bella', name: 'Bella – Professional, Bright, Warm', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
-  { id: 'deep-storyteller', name: 'Deep Storyteller – Magnetic, Smooth, Sophisticated', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
-  { id: 'academic-lecturer', name: 'Academic Lecturer – Instructional, Clear', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
-  { id: 'articulate-commentator', name: 'Articulate Commentator – Resonant, Sharp', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
-  { id: 'calm-woman', name: 'Calm Woman – Sophisticated, Serene', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
-  { id: 'casual-narrator', name: 'Casual Narrator – Natural, Fluid, Grounded', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
-  { id: 'casual-podcaster', name: 'Casual Podcaster – Textured, Relatable', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
-  { id: 'crisp-news', name: 'Crisp News Anchor – Clear, Elegant, Fast', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
-  { id: 'energetic-commentator', name: 'Energetic Commentator – Engaging, Bright', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
-  { id: 'friendly-girl', name: 'Friendly Girl – Sweet, Approachable, Warm', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
+  { id: 'bella', name: 'Bella – Chuyên nghiệp, tươi sáng, ấm áp', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
+  { id: 'deep-storyteller', name: 'Người kể chuyện trầm ấm – Cuốn hút, mượt mà, tinh tế', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
+  { id: 'academic-lecturer', name: 'Diễn giả học thuật – Rõ ràng, dễ theo dõi', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
+  { id: 'articulate-commentator', name: 'Bình luận viên mạch lạc – Vang, sắc nét', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
+  { id: 'calm-woman', name: 'Nữ giọng điềm tĩnh – Thanh lịch, nhẹ nhàng', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
+  { id: 'casual-narrator', name: 'Người dẫn chuyện tự nhiên – Linh hoạt, gần gũi', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
+  { id: 'casual-podcaster', name: 'Podcaster tự nhiên – Có chiều sâu, thân thiện', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
+  { id: 'crisp-news', name: 'MC bản tin rõ nét – Rõ ràng, thanh lịch, nhanh', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
+  { id: 'energetic-commentator', name: 'Bình luận viên năng lượng – Sinh động, sáng rõ', source_type: 'system', language_code: 'en', gender: 'male', is_active: true },
+  { id: 'friendly-girl', name: 'Giọng nữ thân thiện – Ngọt ngào, gần gũi, ấm áp', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
   { id: 'cloned-empty', name: 'Giọng MiniMax của tôi', source_type: 'cloned', language_code: 'vi', gender: 'male', is_active: true }
 ];
 
@@ -62,12 +62,12 @@ const minimaxModels = [
 const elevenModels = ['Eleven Multilingual v2', 'Eleven Turbo v2.5', 'Eleven English v1'];
 
 const languages = [
-  { label: 'English', value: 'en', flag: '🇺🇸' },
-  { label: 'Vietnamese', value: 'vi', flag: '🇻🇳' },
-  { label: 'Chinese (Mandarin)', value: 'zh', flag: '🇨🇳' },
-  { label: 'Cantonese', value: 'yue', flag: '🇭🇰' },
-  { label: 'Japanese', value: 'ja', flag: '🇯🇵' },
-  { label: 'Korean', value: 'ko', flag: '🇰🇷' }
+  { label: 'Tiếng Anh', value: 'en', flag: '🇺🇸' },
+  { label: 'Tiếng Việt', value: 'vi', flag: '🇻🇳' },
+  { label: 'Tiếng Trung (Quan Thoại)', value: 'zh', flag: '🇨🇳' },
+  { label: 'Tiếng Quảng Đông', value: 'yue', flag: '🇭🇰' },
+  { label: 'Tiếng Nhật', value: 'ja', flag: '🇯🇵' },
+  { label: 'Tiếng Hàn', value: 'ko', flag: '🇰🇷' }
 ];
 
 function cx(...items: Array<string | false | undefined>) {
@@ -217,7 +217,7 @@ function Sidebar({ screen, setScreen }: { screen: Screen; setScreen: (screen: Sc
     { group: 'Khu thử nghiệm', rows: [
       { id: 'tts' as Screen, label: 'Văn bản thành giọng nói', icon: Mic },
       { id: 'conversation' as Screen, label: 'Hội thoại', icon: MessageSquare },
-      { id: 'voiceChanger' as Screen, label: 'Thay đổi giọng nói', icon: Repeat2, badge: 'NEW' }
+      { id: 'voiceChanger' as Screen, label: 'Thay đổi giọng nói', icon: Repeat2, badge: 'MỚI' }
     ] },
     { group: 'Tài nguyên', rows: [
       { id: 'library' as Screen, label: 'Thư viện giọng nói', icon: Library },
@@ -225,8 +225,8 @@ function Sidebar({ screen, setScreen }: { screen: Screen; setScreen: (screen: Sc
     ] },
     { group: 'Công cụ', rows: [
       { id: 'affiliate' as Screen, label: 'Tiếp thị liên kết', icon: WalletCards },
-      { id: 'studio' as Screen, label: 'Studio âm thanh', icon: Grid2X2, badge: 'NEW' },
-      { id: 'aiEffects' as Screen, label: 'Hiệu ứng AI', icon: Sparkles, badge: 'Coming soon', disabled: true }
+      { id: 'studio' as Screen, label: 'Xưởng âm thanh', icon: Grid2X2, badge: 'MỚI' },
+      { id: 'aiEffects' as Screen, label: 'Hiệu ứng AI', icon: Sparkles, badge: 'Sắp ra mắt', disabled: true }
     ] }
   ];
 
@@ -256,17 +256,17 @@ function Sidebar({ screen, setScreen }: { screen: Screen; setScreen: (screen: Sc
           </section>
         ))}
       </div>
-      <button className="buy-credits" type="button"><ShoppingCart size={17} /> MUA CREDITS</button>
+      <button className="buy-credits" type="button"><ShoppingCart size={17} /> MUA TÍN DỤNG</button>
     </aside>
   );
 }
 
 function TopBar({ screen }: { screen: Screen }) {
   const titles: Record<Screen, string> = {
-    tts: 'Text to Speech',
-    conversation: 'Conversation',
-    voiceChanger: 'Voice Changer',
-    studio: 'Studio',
+    tts: 'Văn bản thành giọng nói',
+    conversation: 'Hội thoại',
+    voiceChanger: 'Thay đổi giọng nói',
+    studio: 'Xưởng âm thanh',
     library: 'Thư viện giọng nói',
     history: 'Lịch sử',
     affiliate: 'Tiếp thị liên kết',
@@ -320,7 +320,7 @@ function VoiceChangerWorkspace() {
       <label className="dropzone">
         <Upload size={34} />
         <strong>Thả file âm thanh vào đây hoặc bấm để chọn</strong>
-        <span>MP3, M4A, WAV | Max 50MB | Up to 5 minutes</span>
+        <span>MP3, M4A, WAV | Tối đa 50MB | Tối đa 5 phút</span>
         <input type="file" accept="audio/*" />
       </label>
       <div className="fixed-action"><button className="primary-pill disabled" type="button"><Repeat2 size={18} /> ĐỔI GIỌNG</button></div>
@@ -360,7 +360,7 @@ function HistoryWorkspace({ jobs }: { jobs: JobStatusOut[] }) {
 function BottomComposer({ credits, countLabel, count, busy, button, onClick }: { credits: number; countLabel: string; count: number; busy: boolean; button: string; onClick: () => void }) {
   return (
     <footer className="bottom-composer">
-      <div className="credits-dot" /><span>{credits.toLocaleString()} Credits còn lại</span>
+      <div className="credits-dot" /><span>{credits.toLocaleString()} Tín dụng còn lại</span>
       <div className="composer-spacer" />
       <span>{countLabel}: {count}</span>
       <button className="round-upload" type="button"><Upload size={18} /></button>
@@ -395,7 +395,7 @@ function ConfigPanel({ provider, setProvider, settings, updateSettings, selected
           </div>
 
           <PanelLabel action="ĐỒNG BỘ GIỌNG NÓI">Giọng nói</PanelLabel>
-          <button className="voice-select" onClick={onOpenLibrary} type="button"><span className="voice-icon"><User size={22} /></span><span><strong>{selectedVoice?.name || 'Chọn giọng nói'}</strong><small>{provider === 'minimax' ? 'MINIMAX SYSTEM' : 'DEFAULT'}</small></span><ChevronDown size={18} /></button>
+          <button className="voice-select" onClick={onOpenLibrary} type="button"><span className="voice-icon"><User size={22} /></span><span><strong>{selectedVoice?.name || 'Chọn giọng nói'}</strong><small>{provider === 'minimax' ? 'GIỌNG HỆ THỐNG MINIMAX' : 'MẶC ĐỊNH'}</small></span><ChevronDown size={18} /></button>
 
           {provider === 'minimax' && <button className="clone-cta" onClick={onOpenClone} type="button"><Copy size={22} /> SAO CHÉP GIỌNG NÓI <ChevronRight size={18} /></button>}
 
@@ -445,9 +445,9 @@ function VoiceLibraryModal({ voices, selectedVoiceId, onClose, onSelect, onOpenC
 
   return (
     <div className="modal-backdrop"><div className="voice-modal">
-      <header className="modal-head"><div className="segmented"><button className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>TẤT CẢ VOICE</button><button className={tab === 'cloned' ? 'active' : ''} onClick={() => setTab('cloned')}>NHÂN BẢN</button></div><div className="modal-search"><Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm kiếm giọng nói..." /></div><button className="modal-close" onClick={onClose}><X size={28} /></button></header>
+      <header className="modal-head"><div className="segmented"><button className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>TẤT CẢ GIỌNG NÓI</button><button className={tab === 'cloned' ? 'active' : ''} onClick={() => setTab('cloned')}>NHÂN BẢN</button></div><div className="modal-search"><Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm kiếm giọng nói..." /></div><button className="modal-close" onClick={onClose}><X size={28} /></button></header>
       {tab === 'cloned' && filtered.length === 0 ? <div className="empty-voice"><Search size={46} /><p>Không tìm thấy giọng nói nào</p><button className="clone-cta wide" onClick={onOpenClone}><Copy size={20} /> TẠO GIỌNG NHÂN BẢN</button></div> : (
-        <div className="modal-body"><aside className="filter-side"><h4><Filter size={15} /> Bộ lọc</h4>{['ALL', 'SYSTEM', 'CLONED'].map((x) => <button key={x} className={(x.toLowerCase() === tab || (tab === 'all' && x === 'ALL')) ? 'active' : ''} onClick={() => setTab(x === 'CLONED' ? 'cloned' : 'all')}>{x}</button>)}</aside><section className="voice-grid">{filtered.map((voice) => <button key={voice.id} className={cx('voice-card', selectedVoiceId === voice.id && 'selected')} onClick={() => onSelect(voice)}><span className="play-box"><Play size={15} /></span><span><strong>{voice.name}</strong><small>{voice.source_type === 'cloned' ? 'CLONED' : 'SYSTEM'}</small></span>{selectedVoiceId === voice.id && <Check size={18} />}</button>)}</section></div>
+        <div className="modal-body"><aside className="filter-side"><h4><Filter size={15} /> Bộ lọc</h4>{[{ key: 'all', label: 'TẤT CẢ' }, { key: 'all', label: 'HỆ THỐNG' }, { key: 'cloned', label: 'NHÂN BẢN' }].map((item) => <button key={item.label} className={tab === item.key ? 'active' : ''} onClick={() => setTab(item.key as 'all' | 'cloned')}>{item.label}</button>)}</aside><section className="voice-grid">{filtered.map((voice) => <button key={voice.id} className={cx('voice-card', selectedVoiceId === voice.id && 'selected')} onClick={() => onSelect(voice)}><span className="play-box"><Play size={15} /></span><span><strong>{voice.name}</strong><small>{voice.source_type === 'cloned' ? 'NHÂN BẢN' : 'HỆ THỐNG'}</small></span>{selectedVoiceId === voice.id && <Check size={18} />}</button>)}</section></div>
       )}
       <footer className="modal-foot"><span>● {voices.length} TỔNG SỐ GIỌNG NÓI ĐÃ ĐĂNG KÝ</span><span>■ ĐÃ CHỌN &nbsp;&nbsp; ■ CÓ SẴN</span></footer>
     </div></div>
@@ -475,8 +475,8 @@ function CloneVoiceModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-backdrop"><div className="clone-modal">
-      <header className="modal-head"><div className="segmented"><button disabled>TẤT CẢ VOICE</button><button className="active">NHÂN BẢN</button></div><div className="modal-search"><Search size={18} /><input placeholder="Tìm kiếm giọng nói..." /></div><button className="modal-close" onClick={onClose}><X size={28} /></button></header>
-      <div className="clone-form"><button className="refresh"><RefreshCw size={18} /></button><h2>Tạo giọng mới</h2><div className="form-line"><input value={name} onChange={(e) => setName(e.target.value)} /><select value={gender} onChange={(e) => setGender(e.target.value as 'Nam' | 'Nữ')}><option>Nam</option><option>Nữ</option></select></div><select value={language} onChange={(e) => setLanguage(e.target.value)}>{languages.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select><textarea defaultValue="Xin chào. Đây là bản xem thử giọng MiniMax của tôi." /><div className="sample-row"><span>Mẫu âm thanh</span><div><button>Tải lên</button><button>Thu âm</button></div></div><label className="upload-zone">Tải lên hoặc thu âm một mẫu giọng (tối đa 20MB)</label><div className="check-row"><label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Tôi xác nhận có quyền sử dụng mẫu giọng nói này. <b>BẮT BUỘC</b></label><label><input type="checkbox" checked={denoise} onChange={(e) => setDenoise(e.target.checked)} /> Khử tiếng ồn</label></div><button className="clone-submit" onClick={createClone}><Copy size={24} /> BẮT ĐẦU NHÂN BẢN <span>-1,000 CREDITS</span><ChevronRight /></button>{status && <p className="form-status">{status}</p>}</div>
+      <header className="modal-head"><div className="segmented"><button disabled>TẤT CẢ GIỌNG NÓI</button><button className="active">NHÂN BẢN</button></div><div className="modal-search"><Search size={18} /><input placeholder="Tìm kiếm giọng nói..." /></div><button className="modal-close" onClick={onClose}><X size={28} /></button></header>
+      <div className="clone-form"><button className="refresh"><RefreshCw size={18} /></button><h2>Tạo giọng mới</h2><div className="form-line"><input value={name} onChange={(e) => setName(e.target.value)} /><select value={gender} onChange={(e) => setGender(e.target.value as 'Nam' | 'Nữ')}><option>Nam</option><option>Nữ</option></select></div><select value={language} onChange={(e) => setLanguage(e.target.value)}>{languages.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select><textarea defaultValue="Xin chào. Đây là bản xem thử giọng MiniMax của tôi." /><div className="sample-row"><span>Mẫu âm thanh</span><div><button>Tải lên</button><button>Thu âm</button></div></div><label className="upload-zone">Tải lên hoặc thu âm một mẫu giọng (tối đa 20MB)</label><div className="check-row"><label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Tôi xác nhận có quyền sử dụng mẫu giọng nói này. <b>BẮT BUỘC</b></label><label><input type="checkbox" checked={denoise} onChange={(e) => setDenoise(e.target.checked)} /> Khử tiếng ồn</label></div><button className="clone-submit" onClick={createClone}><Copy size={24} /> BẮT ĐẦU NHÂN BẢN <span>-1,000 TÍN DỤNG</span><ChevronRight /></button>{status && <p className="form-status">{status}</p>}</div>
       <footer className="modal-foot"><span>● 0 TỔNG SỐ GIỌNG NÓI ĐÃ ĐĂNG KÝ</span><span>■ ĐÃ CHỌN &nbsp;&nbsp; ■ CÓ SẴN</span></footer>
     </div></div>
   );
