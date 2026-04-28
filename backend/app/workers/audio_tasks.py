@@ -15,11 +15,20 @@ from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
+_STRICT_RUNTIME_ENVS = {"prod", "production", "staging"}
+_EXTERNAL_TTS_PROVIDERS = {"elevenlabs", "minimax"}
+
+
+def _is_strict_runtime() -> bool:
+    return (settings.app_env or "dev").strip().lower() in _STRICT_RUNTIME_ENVS
+
 
 def _call_real_provider(task: AudioTaskRequest, provider: str) -> dict | None:
     """Try to call a real TTS provider. Returns artifact dict on success, None if no API key."""
     if provider == "elevenlabs":
         if not settings.elevenlabs_api_key:
+            if _is_strict_runtime():
+                raise RuntimeError("Missing ELEVENLABS_API_KEY in production-like runtime")
             return None
         from app.providers.elevenlabs import ElevenLabsProvider
         result = ElevenLabsProvider().generate_speech({
@@ -67,6 +76,10 @@ class _WorkerAudioRuntime:
         real_result = _call_real_provider(task, provider)
         if real_result is not None:
             return real_result
+        if _is_strict_runtime() and provider in _EXTERNAL_TTS_PROVIDERS:
+            raise RuntimeError(
+                f"Refusing placeholder fallback for provider '{provider}' in production-like runtime"
+            )
         return write_audio_artifacts(
             task.source_job_id or "",
             request_json=task.request_json,

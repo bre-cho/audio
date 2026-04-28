@@ -35,6 +35,7 @@ def list_library_voices(
         {
             "id": str(v.id),
             "name": v.name,
+            "is_active": bool(v.is_active),
             "language_code": v.language_code,
             "gender": v.gender,
             "age_group": v.age_group,

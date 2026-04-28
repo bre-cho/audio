@@ -111,7 +111,7 @@ export default function App() {
   }, [provider]);
 
   useEffect(() => {
-    api.voices().then((data) => data.length && setVoices(data)).catch(() => undefined);
+    api.libraryVoices({ limit: 200 }).then((data) => data.length && setVoices(data)).catch(() => undefined);
     api.jobs().then(setJobs).catch(() => undefined);
     api.projects().then((data) => {
       setProjects(data);
@@ -121,22 +121,103 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const stream = new EventSource(api.jobsStreamUrl());
-    const onJobs = (event: MessageEvent<string>) => {
-      try {
-        const nextJobs = JSON.parse(event.data) as JobStatusOut[];
-        setJobs(nextJobs);
-      } catch {
-        // Ignore malformed stream events and keep the last known job list.
+    let destroyed = false;
+    let stream: EventSource | null = null;
+    let reconnectTimer: number | null = null;
+    let pollingTimer: number | null = null;
+    let reconnectAttempt = 0;
+    let pollingActive = false;
+
+    const clearReconnectTimer = () => {
+      if (reconnectTimer != null) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
       }
     };
 
-    stream.addEventListener('jobs', onJobs as EventListener);
-    stream.onerror = () => stream.close();
+    const clearPollingTimer = () => {
+      if (pollingTimer != null) {
+        window.clearTimeout(pollingTimer);
+        pollingTimer = null;
+      }
+    };
+
+    const pollJobs = async () => {
+      try {
+        const nextJobs = await api.jobs();
+        if (!destroyed) {
+          setJobs(nextJobs);
+        }
+      } catch {
+        // Keep last known jobs while backend is unavailable.
+      } finally {
+        if (!destroyed && pollingActive) {
+          pollingTimer = window.setTimeout(() => {
+            void pollJobs();
+          }, 5000);
+        }
+      }
+    };
+
+    const startPollingFallback = () => {
+      if (pollingActive || destroyed) {
+        return;
+      }
+      pollingActive = true;
+      void pollJobs();
+    };
+
+    const stopPollingFallback = () => {
+      pollingActive = false;
+      clearPollingTimer();
+    };
+
+    const connectStream = () => {
+      if (destroyed) {
+        return;
+      }
+
+      const nextStream = new EventSource(api.jobsStreamUrl());
+      stream = nextStream;
+
+      const onJobs = (event: MessageEvent<string>) => {
+        try {
+          const nextJobs = JSON.parse(event.data) as JobStatusOut[];
+          setJobs(nextJobs);
+        } catch {
+          // Ignore malformed stream events and keep the last known job list.
+        }
+      };
+
+      nextStream.onopen = () => {
+        reconnectAttempt = 0;
+        stopPollingFallback();
+      };
+
+      nextStream.addEventListener('jobs', onJobs as EventListener);
+      nextStream.onerror = () => {
+        nextStream.removeEventListener('jobs', onJobs as EventListener);
+        nextStream.close();
+        stream = null;
+
+        startPollingFallback();
+        clearReconnectTimer();
+        const delayMs = Math.min(30000, 1000 * (2 ** Math.min(reconnectAttempt, 5)));
+        reconnectAttempt += 1;
+        reconnectTimer = window.setTimeout(connectStream, delayMs);
+      };
+    };
+
+    connectStream();
 
     return () => {
-      stream.removeEventListener('jobs', onJobs as EventListener);
-      stream.close();
+      destroyed = true;
+      clearReconnectTimer();
+      clearPollingTimer();
+      if (stream) {
+        stream.close();
+        stream = null;
+      }
     };
   }, []);
 

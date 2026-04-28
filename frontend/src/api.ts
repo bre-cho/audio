@@ -20,6 +20,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   jobsStreamUrl: () => `${API_BASE}/jobs/stream`,
   providers: () => request<ProviderOut[]>('/providers'),
+  libraryVoices: (params?: { source_type?: string; language_code?: string; gender?: string; quality_tier?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.source_type) qs.set('source_type', params.source_type);
+    if (params?.language_code) qs.set('language_code', params.language_code);
+    if (params?.gender) qs.set('gender', params.gender);
+    if (params?.quality_tier) qs.set('quality_tier', params.quality_tier);
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    return request<VoiceOut[]>(`/library/voices${qs.toString() ? `?${qs.toString()}` : ''}`);
+  },
   voices: (params?: { provider?: string; source_type?: string; language_code?: string }) => {
     const qs = new URLSearchParams();
     if (params?.source_type) qs.set('source_type', params.source_type);

@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+from celery.exceptions import Retry
+
 from app.models.audio_output import AudioOutput
 from app.repositories.job_repo import JobRepository
 from app.workers.audio_tasks import process_conversation_job, process_tts_job
@@ -216,3 +219,53 @@ def test_tts_preview_worker_uses_db_workflow_type_even_when_job_type_is_tts(db_s
     assert result["status"] == "succeeded"
     assert result["workflow_type"] == "tts_preview"
     assert updated.runtime_json["workflow_type"] == "tts_preview"
+
+
+def test_tts_worker_rejects_placeholder_fallback_in_production_without_api_key(db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path))
+
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "elevenlabs_api_key", None)
+
+    repo = JobRepository(db_session)
+    job = repo.create(
+        user_id="00000000-0000-0000-0000-000000000001",
+        job_type="tts_preview",
+        request_json={"text": "hello", "voice": "default", "provider": "elevenlabs"},
+    )
+
+    with pytest.raises(Retry), pytest.MonkeyPatch.context() as mp:
+        mp.setattr("app.workers.audio_tasks._should_fail_task", lambda *_a, **_k: True)
+        mp.setattr("app.workers.audio_tasks.process_tts_job.retry", lambda *a, **k: (_ for _ in ()).throw(Retry()))
+        process_tts_job.run(str(job.id))
+
+    db_session.expire_all()
+    updated = repo.get(job.id)
+    assert updated.status == "failed"
+    assert "ELEVENLABS_API_KEY" in (updated.error_message or "")
+
+
+def test_tts_worker_allows_dev_placeholder_fallback_without_api_key(db_session, tmp_path, monkeypatch):
+    monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path))
+
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "app_env", "dev")
+    monkeypatch.setattr(settings, "elevenlabs_api_key", None)
+
+    repo = JobRepository(db_session)
+    job = repo.create(
+        user_id="00000000-0000-0000-0000-000000000001",
+        job_type="tts_preview",
+        request_json={"text": "hello", "voice": "default", "provider": "elevenlabs"},
+    )
+
+    result = process_tts_job.run(str(job.id))
+
+    db_session.expire_all()
+    updated = repo.get(job.id)
+    assert result["status"] == "succeeded"
+    assert updated.status == "succeeded"
+    assert (updated.output_url or "").endswith(".wav")
