@@ -14,20 +14,25 @@ class VoiceCloneService:
         self.db = db
         self.jobs = JobRepository(db)
         self.credits = CreditRepository(db)
-        self.default_user_id = uuid.UUID('00000000-0000-0000-0000-000000000001')
 
-    def submit_clone(self, payload: VoiceCloneCreateRequest, idempotency_key: str | None = None) -> JobStatusOut:
+    def submit_clone(
+        self,
+        payload: VoiceCloneCreateRequest,
+        user_id: UUID | None = None,
+        idempotency_key: str | None = None,
+    ) -> JobStatusOut:
+        current_user_id = user_id or uuid.UUID('00000000-0000-0000-0000-000000000001')
         if not payload.consent_confirmed:
             raise ValueError('consent_confirmed phai la true')
         job, created = self.jobs.create_or_get(
-            user_id=self.default_user_id,
+            user_id=current_user_id,
             job_type='clone',
             request_json=payload.model_dump(mode='json'),
             idempotency_key=idempotency_key,
         )
         if created:
             self.credits.add_event(
-                user_id=self.default_user_id,
+                user_id=current_user_id,
                 delta_credits=-1000,
                 event_type='reserve',
                 note='giu cho clone giong noi',
@@ -35,8 +40,9 @@ class VoiceCloneService:
             enqueue_clone_job(str(job.id))
         return JobStatusOut.model_validate(job)
 
-    def submit_preview(self, voice_id: UUID, payload: VoiceClonePreviewRequest) -> JobStatusOut:
-        job = self.jobs.create(user_id=self.default_user_id, job_type='clone_preview', request_json=payload.model_dump(mode='json'), voice_id=voice_id)
+    def submit_preview(self, voice_id: UUID, payload: VoiceClonePreviewRequest, user_id: UUID | None = None) -> JobStatusOut:
+        current_user_id = user_id or uuid.UUID('00000000-0000-0000-0000-000000000001')
+        job = self.jobs.create(user_id=current_user_id, job_type='clone_preview', request_json=payload.model_dump(mode='json'), voice_id=voice_id)
         enqueue_clone_preview_job(str(job.id))
         return JobStatusOut.model_validate(job)
 
@@ -44,10 +50,12 @@ class VoiceCloneService:
         self,
         voice_id: UUID,
         task: AudioTaskRequest,
+        user_id: UUID | None = None,
         idempotency_key: str | None = None,
     ) -> JobStatusOut:
+        current_user_id = user_id or uuid.UUID('00000000-0000-0000-0000-000000000001')
         job, created = self.jobs.create_or_get(
-            user_id=self.default_user_id,
+            user_id=current_user_id,
             job_type='clone_preview',
             workflow_type=task.workflow_type.value,
             request_json=task.request_json,
@@ -56,4 +64,27 @@ class VoiceCloneService:
         )
         if created:
             enqueue_clone_preview_job(str(job.id))
+        return JobStatusOut.model_validate(job)
+
+    def submit_shift_job(
+        self,
+        sample_file_id: str,
+        user_id: UUID | None = None,
+        pitch_semitones: float = 0,
+        idempotency_key: str | None = None,
+    ) -> JobStatusOut:
+        current_user_id = user_id or uuid.UUID('00000000-0000-0000-0000-000000000001')
+        job, created = self.jobs.create_or_get(
+            user_id=current_user_id,
+            job_type='voice_shift',
+            request_json={'sample_file_id': sample_file_id, 'pitch_semitones': pitch_semitones},
+            idempotency_key=idempotency_key,
+        )
+        if created:
+            self.credits.add_event(
+                user_id=current_user_id,
+                delta_credits=-500,
+                event_type='reserve',
+                note='giu cho shift voice',
+            )
         return JobStatusOut.model_validate(job)

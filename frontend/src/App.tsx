@@ -92,10 +92,11 @@ export default function App() {
   const [voices, setVoices] = useState<VoiceOut[]>(fallbackVoices);
   const [jobs, setJobs] = useState<JobStatusOut[]>([]);
   const [projects, setProjects] = useState<ProjectOut[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [credits, setCredits] = useState(10000);
-  const [libraryOpen, setLibraryOpen] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [studioBusy, setStudioBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const accent = provider === 'minimax' ? 'purple' : 'teal';
@@ -112,8 +113,31 @@ export default function App() {
   useEffect(() => {
     api.voices().then((data) => data.length && setVoices(data)).catch(() => undefined);
     api.jobs().then(setJobs).catch(() => undefined);
-    api.projects().then(setProjects).catch(() => undefined);
+    api.projects().then((data) => {
+      setProjects(data);
+      setSelectedProjectId((current) => current || data[0]?.id || null);
+    }).catch(() => undefined);
     api.balance().then((data) => setCredits(data.balance_credits)).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const stream = new EventSource(api.jobsStreamUrl());
+    const onJobs = (event: MessageEvent<string>) => {
+      try {
+        const nextJobs = JSON.parse(event.data) as JobStatusOut[];
+        setJobs(nextJobs);
+      } catch {
+        // Ignore malformed stream events and keep the last known job list.
+      }
+    };
+
+    stream.addEventListener('jobs', onJobs as EventListener);
+    stream.onerror = () => stream.close();
+
+    return () => {
+      stream.removeEventListener('jobs', onJobs as EventListener);
+      stream.close();
+    };
   }, []);
 
   const selectedVoice = useMemo(() => {
@@ -122,6 +146,47 @@ export default function App() {
 
   function updateSettings(patch: Partial<SettingsState>) {
     setSettings((prev) => ({ ...prev, ...patch }));
+  }
+
+  async function handleCreateProject() {
+    const title = `Dự án audio ${projects.length + 1}`;
+    const project = await api.createProject(title);
+    setProjects((prev) => [project, ...prev]);
+    setSelectedProjectId(project.id);
+    setScreen('studio');
+  }
+
+  async function handleSaveProjectScript(projectId: string, rawText: string) {
+    setStudioBusy(true);
+    try {
+      await api.addProjectScript(projectId, {
+        asset_type: 'script',
+        title: 'Narration script',
+        raw_text: rawText,
+        language_code: settings.language,
+        metadata_json: { source: 'frontend-studio' }
+      });
+      setToast('Đã lưu script cho dự án.');
+      const refreshed = await api.project(projectId);
+      setProjects((prev) => prev.map((item) => item.id === refreshed.id ? refreshed : item));
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Không thể lưu script dự án.');
+    } finally {
+      setStudioBusy(false);
+    }
+  }
+
+  async function handleRenderProject(projectId: string) {
+    setStudioBusy(true);
+    try {
+      const job = await api.batchGenerateProject(projectId);
+      setJobs((prev) => [job, ...prev.filter((item) => item.id !== job.id)]);
+      setToast(`Đã tạo job render dự án ${job.job_id || job.id}.`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Không thể render dự án.');
+    } finally {
+      setStudioBusy(false);
+    }
   }
 
   async function submitText(text: string, mode: 'tts' | 'conversation') {
@@ -173,12 +238,10 @@ export default function App() {
         {screen === 'tts' && <TextWorkspace busy={busy} credits={credits} onSubmit={(text) => submitText(text, 'tts')} />}
         {screen === 'conversation' && <ConversationWorkspace busy={busy} credits={credits} onSubmit={(text) => submitText(text, 'conversation')} />}
         {screen === 'voiceChanger' && <VoiceChangerWorkspace />}
-        {screen === 'studio' && <StudioWorkspace projects={projects} onCreate={async () => {
-          const title = `Dự án audio ${projects.length + 1}`;
-          const p = await api.createProject(title);
-          setProjects((prev) => [p, ...prev]);
-        }} />}
+        {screen === 'library' && <VoiceLibraryWorkspace voices={voices} selectedVoiceId={settings.voiceId} onSelect={(voice) => updateSettings({ voiceId: voice.id })} onOpenClone={() => setCloneOpen(true)} />}
+        {screen === 'studio' && <StudioWorkspace projects={projects} selectedProjectId={selectedProjectId} onCreate={handleCreateProject} onSelectProject={setSelectedProjectId} onSaveScript={handleSaveProjectScript} onRenderProject={handleRenderProject} busy={studioBusy} />}
         {screen === 'history' && <HistoryWorkspace jobs={jobs} />}
+        {screen === 'affiliate' && <AffiliateWorkspace />}
       </main>
       <ConfigPanel
         provider={provider}
@@ -186,23 +249,11 @@ export default function App() {
         settings={settings}
         updateSettings={updateSettings}
         selectedVoice={selectedVoice}
-        onOpenLibrary={() => setLibraryOpen(true)}
+        onOpenLibrary={() => setScreen('library')}
         onOpenClone={() => setCloneOpen(true)}
         jobs={jobs}
       />
-      {libraryOpen && (
-        <VoiceLibraryModal
-          voices={voices}
-          selectedVoiceId={settings.voiceId}
-          onClose={() => setLibraryOpen(false)}
-          onSelect={(voice) => {
-            updateSettings({ voiceId: voice.id });
-            setLibraryOpen(false);
-          }}
-          onOpenClone={() => setCloneOpen(true)}
-        />
-      )}
-      {cloneOpen && <CloneVoiceModal onClose={() => setCloneOpen(false)} />}
+      {cloneOpen && <CloneVoiceModal onClose={() => setCloneOpen(false)} onJobCreated={(job) => setJobs((prev) => [job, ...prev.filter((item) => item.id !== job.id)])} onUploaded={(voiceFileName) => setToast(`Đã tải mẫu giọng ${voiceFileName}.`)} />}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
@@ -239,12 +290,12 @@ function Sidebar({ screen, setScreen }: { screen: Screen; setScreen: (screen: Sc
             <p className="group-title">{group.group}</p>
             {group.rows.map((item) => {
               const Icon = item.icon;
-              const active = screen === item.id || (item.id === 'library' && false);
+              const active = screen === item.id;
               return (
                 <button
                   key={item.id}
                   className={cx('nav-item', active && 'active', item.disabled && 'disabled')}
-                  onClick={() => !item.disabled && (item.id === 'library' ? undefined : setScreen(item.id))}
+                  onClick={() => !item.disabled && setScreen(item.id)}
                   type="button"
                 >
                   <Icon size={18} />
@@ -315,20 +366,76 @@ function ConversationWorkspace({ busy, credits, onSubmit }: { busy: boolean; cre
 }
 
 function VoiceChangerWorkspace() {
+  const [file, setFile] = useState<File | null>(null);
+  const [pitch, setPitch] = useState(0);
+  const [processing, setProcessing] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  async function handleShiftVoice() {
+    if (!file) {
+      setToast('Hãy chọn file âm thanh trước khi đổi giọng.');
+      return;
+    }
+    setProcessing(true);
+    try {
+      const job = await api.shiftVoice(file, pitch);
+      setToast(`Đã tạo job shift giọng ${job.job_id || job.id}. Trạng thái: ${job.status}`);
+      setFile(null);
+      setPitch(0);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Không thể xử lý file âm thanh.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
   return (
     <section className="workspace voice-change">
       <label className="dropzone">
         <Upload size={34} />
         <strong>Thả file âm thanh vào đây hoặc bấm để chọn</strong>
-        <span>MP3, M4A, WAV | Tối đa 50MB | Tối đa 5 phút</span>
-        <input type="file" accept="audio/*" />
+        <span>MP3, M4A, WAV | Tối đa 50MB</span>
+        <input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
       </label>
-      <div className="fixed-action"><button className="primary-pill disabled" type="button"><Repeat2 size={18} /> ĐỔI GIỌNG</button></div>
+      {file && (
+        <div className="voice-change-controls">
+          <p>Chọn file: <strong>{file.name}</strong></p>
+          <div className="pitch-slider">
+            <span>Cao độ (semitone)</span>
+            <input type="range" min={-12} max={12} step={1} value={pitch} onChange={(e) => setPitch(Number(e.target.value))} />
+            <strong>{pitch > 0 ? '+' : ''}{pitch}</strong>
+          </div>
+          <button className="primary-pill" disabled={processing} onClick={handleShiftVoice} type="button">
+            {processing ? <Loader2 className="spin" size={18} /> : <Repeat2 size={18} />} XỬ LÝ GIỌNG NÓI
+          </button>
+        </div>
+      )}
+      {!file && <p className="feature-note">Tải lên file âm thanh để bắt đầu biến đổi cao độ hoặc tone giọng.</p>}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </section>
   );
 }
 
-function StudioWorkspace({ projects, onCreate }: { projects: ProjectOut[]; onCreate: () => void }) {
+function StudioWorkspace({ projects, selectedProjectId, onCreate, onSelectProject, onSaveScript, onRenderProject, busy }: {
+  projects: ProjectOut[];
+  selectedProjectId: string | null;
+  onCreate: () => void;
+  onSelectProject: (projectId: string) => void;
+  onSaveScript: (projectId: string, rawText: string) => Promise<void>;
+  onRenderProject: (projectId: string) => Promise<void>;
+  busy: boolean;
+}) {
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) || projects[0] || null;
+  const [scriptText, setScriptText] = useState('');
+
+  useEffect(() => {
+    if (!selectedProject) {
+      setScriptText('');
+      return;
+    }
+    setScriptText(`# ${selectedProject.title}\n\nMở đầu:\n- Giới thiệu nội dung\n\nThân bài:\n- Điểm chính 1\n- Điểm chính 2\n\nKết:\n- Lời kêu gọi hành động`);
+  }, [selectedProjectId, selectedProject?.title]);
+
   return (
     <section className="workspace studio-page">
       <div className="studio-head">
@@ -338,7 +445,10 @@ function StudioWorkspace({ projects, onCreate }: { projects: ProjectOut[]; onCre
       {projects.length === 0 ? (
         <div className="empty-state"><FolderOpen size={46} /><h2>Chưa có dự án nào</h2><p>Tạo dự án đầu tiên để bắt đầu tạo audio hàng loạt.</p></div>
       ) : (
-        <div className="project-grid">{projects.map((p) => <article key={p.id} className="project-card"><h3>{p.title}</h3><p>{p.status}</p></article>)}</div>
+        <div className="studio-layout">
+          <div className="project-grid selectable">{projects.map((p) => <button key={p.id} className={cx('project-card', selectedProject?.id === p.id && 'selected')} onClick={() => onSelectProject(p.id)} type="button"><h3>{p.title}</h3><p>{p.status}</p><small>{new Date(p.created_at).toLocaleString('vi-VN')}</small></button>)}</div>
+          {selectedProject && <article className="project-detail-card"><div className="project-detail-head"><div><span className="project-chip">{selectedProject.status}</span><h2>{selectedProject.title}</h2><p>{selectedProject.description || 'Dự án này chưa có mô tả. Hãy thêm script và chạy render để tạo job narration.'}</p></div><button className="primary-pill" disabled={busy} onClick={() => onRenderProject(selectedProject.id)} type="button">{busy ? <Loader2 className="spin" size={18} /> : <Wand2 size={18} />} RENDER PROJECT</button></div><label className="script-editor"><span>Script / outline</span><textarea value={scriptText} onChange={(event) => setScriptText(event.target.value)} placeholder="Nhập script để lưu vào dự án..." /></label><div className="project-detail-actions"><button className="round-action" disabled={busy || !scriptText.trim()} onClick={() => onSaveScript(selectedProject.id, scriptText)} type="button">Lưu script</button><button className="round-action ghost" onClick={() => onSelectProject(selectedProject.id)} type="button">Đang chọn</button></div></article>}
+        </div>
       )}
     </section>
   );
@@ -438,47 +548,146 @@ function PanelHistory({ jobs }: { jobs: JobStatusOut[] }) {
   return <div className="panel-history">{jobs.length === 0 ? <p>Chưa có lịch sử tạo audio.</p> : jobs.slice(0, 12).map((job) => <div key={job.id} className="panel-job"><strong>{job.job_type}</strong><span>{job.status}</span></div>)}</div>;
 }
 
-function VoiceLibraryModal({ voices, selectedVoiceId, onClose, onSelect, onOpenClone }: { voices: VoiceOut[]; selectedVoiceId?: string; onClose: () => void; onSelect: (voice: VoiceOut) => void; onOpenClone: () => void }) {
+function VoiceLibraryWorkspace({ voices, selectedVoiceId, onSelect, onOpenClone }: { voices: VoiceOut[]; selectedVoiceId?: string; onSelect: (voice: VoiceOut) => void; onOpenClone: () => void }) {
   const [tab, setTab] = useState<'all' | 'cloned'>('all');
   const [query, setQuery] = useState('');
   const filtered = voices.filter((v) => (tab === 'all' ? true : v.source_type === 'cloned')).filter((v) => v.name.toLowerCase().includes(query.toLowerCase()));
 
   return (
-    <div className="modal-backdrop"><div className="voice-modal">
-      <header className="modal-head"><div className="segmented"><button className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>TẤT CẢ GIỌNG NÓI</button><button className={tab === 'cloned' ? 'active' : ''} onClick={() => setTab('cloned')}>NHÂN BẢN</button></div><div className="modal-search"><Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm kiếm giọng nói..." /></div><button className="modal-close" onClick={onClose}><X size={28} /></button></header>
+    <section className="workspace library-page"><div className="voice-browser">
+      <header className="modal-head library-head"><div className="segmented"><button className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>TẤT CẢ GIỌNG NÓI</button><button className={tab === 'cloned' ? 'active' : ''} onClick={() => setTab('cloned')}>NHÂN BẢN</button></div><div className="modal-search"><Search size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm kiếm giọng nói..." /></div><button className="modal-close" onClick={onOpenClone}><Copy size={22} /></button></header>
       {tab === 'cloned' && filtered.length === 0 ? <div className="empty-voice"><Search size={46} /><p>Không tìm thấy giọng nói nào</p><button className="clone-cta wide" onClick={onOpenClone}><Copy size={20} /> TẠO GIỌNG NHÂN BẢN</button></div> : (
         <div className="modal-body"><aside className="filter-side"><h4><Filter size={15} /> Bộ lọc</h4>{[{ key: 'all', label: 'TẤT CẢ' }, { key: 'all', label: 'HỆ THỐNG' }, { key: 'cloned', label: 'NHÂN BẢN' }].map((item) => <button key={item.label} className={tab === item.key ? 'active' : ''} onClick={() => setTab(item.key as 'all' | 'cloned')}>{item.label}</button>)}</aside><section className="voice-grid">{filtered.map((voice) => <button key={voice.id} className={cx('voice-card', selectedVoiceId === voice.id && 'selected')} onClick={() => onSelect(voice)}><span className="play-box"><Play size={15} /></span><span><strong>{voice.name}</strong><small>{voice.source_type === 'cloned' ? 'NHÂN BẢN' : 'HỆ THỐNG'}</small></span>{selectedVoiceId === voice.id && <Check size={18} />}</button>)}</section></div>
       )}
       <footer className="modal-foot"><span>● {voices.length} TỔNG SỐ GIỌNG NÓI ĐÃ ĐĂNG KÝ</span><span>■ ĐÃ CHỌN &nbsp;&nbsp; ■ CÓ SẴN</span></footer>
-    </div></div>
+    </div></section>
   );
 }
 
-function CloneVoiceModal({ onClose }: { onClose: () => void }) {
+function CloneVoiceModal({ onClose, onJobCreated, onUploaded }: { onClose: () => void; onJobCreated: (job: JobStatusOut) => void; onUploaded: (fileName: string) => void }) {
   const [name, setName] = useState('Giọng MiniMax của tôi');
   const [gender, setGender] = useState<'Nam' | 'Nữ'>('Nam');
   const [language, setLanguage] = useState('en');
   const [consent, setConsent] = useState(false);
   const [denoise, setDenoise] = useState(false);
+  const [sampleFile, setSampleFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   async function createClone() {
     if (!consent) { setStatus('Bạn cần xác nhận có quyền sử dụng mẫu giọng nói này.'); return; }
+    if (!sampleFile) { setStatus('Hãy chọn một file audio mẫu trước khi nhân bản.'); return; }
+    setSubmitting(true);
     try {
-      const upload = await api.uploadCloneSample();
+      setStatus('Đang tải mẫu giọng lên hệ thống...');
+      const upload = await api.uploadCloneSample(sampleFile);
+      onUploaded(sampleFile.name);
+      setStatus('Đã tải mẫu. Đang tạo job nhân bản...');
       const job = await api.createClone({ name, provider: 'minimax', language_code: language, gender, sample_file_id: upload.file_id, denoise, consent_confirmed: consent });
+      onJobCreated(job);
       setStatus(`Đã tạo job nhân bản: ${job.status}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Không thể tạo job nhân bản.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
     <div className="modal-backdrop"><div className="clone-modal">
       <header className="modal-head"><div className="segmented"><button disabled>TẤT CẢ GIỌNG NÓI</button><button className="active">NHÂN BẢN</button></div><div className="modal-search"><Search size={18} /><input placeholder="Tìm kiếm giọng nói..." /></div><button className="modal-close" onClick={onClose}><X size={28} /></button></header>
-      <div className="clone-form"><button className="refresh"><RefreshCw size={18} /></button><h2>Tạo giọng mới</h2><div className="form-line"><input value={name} onChange={(e) => setName(e.target.value)} /><select value={gender} onChange={(e) => setGender(e.target.value as 'Nam' | 'Nữ')}><option>Nam</option><option>Nữ</option></select></div><select value={language} onChange={(e) => setLanguage(e.target.value)}>{languages.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select><textarea defaultValue="Xin chào. Đây là bản xem thử giọng MiniMax của tôi." /><div className="sample-row"><span>Mẫu âm thanh</span><div><button>Tải lên</button><button>Thu âm</button></div></div><label className="upload-zone">Tải lên hoặc thu âm một mẫu giọng (tối đa 20MB)</label><div className="check-row"><label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Tôi xác nhận có quyền sử dụng mẫu giọng nói này. <b>BẮT BUỘC</b></label><label><input type="checkbox" checked={denoise} onChange={(e) => setDenoise(e.target.checked)} /> Khử tiếng ồn</label></div><button className="clone-submit" onClick={createClone}><Copy size={24} /> BẮT ĐẦU NHÂN BẢN <span>-1,000 TÍN DỤNG</span><ChevronRight /></button>{status && <p className="form-status">{status}</p>}</div>
+      <div className="clone-form"><button className="refresh" type="button"><RefreshCw size={18} /></button><h2>Tạo giọng mới</h2><div className="form-line"><input value={name} onChange={(e) => setName(e.target.value)} /><select value={gender} onChange={(e) => setGender(e.target.value as 'Nam' | 'Nữ')}><option>Nam</option><option>Nữ</option></select></div><select value={language} onChange={(e) => setLanguage(e.target.value)}>{languages.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</select><textarea defaultValue="Xin chào. Đây là bản xem thử giọng MiniMax của tôi." /><div className="sample-row"><span>Mẫu âm thanh</span><div><button type="button">Tải lên</button><button type="button" disabled>Thu âm</button></div></div><label className="upload-zone interactive-upload"><input type="file" accept="audio/*" onChange={(event) => setSampleFile(event.target.files?.[0] || null)} />{sampleFile ? `${sampleFile.name} • ${(sampleFile.size / 1024 / 1024).toFixed(2)} MB` : 'Tải lên một mẫu giọng thực tế (tối đa 20MB)'}</label><div className="check-row"><label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Tôi xác nhận có quyền sử dụng mẫu giọng nói này. <b>BẮT BUỘC</b></label><label><input type="checkbox" checked={denoise} onChange={(e) => setDenoise(e.target.checked)} /> Khử tiếng ồn</label></div><button className="clone-submit" disabled={submitting} onClick={createClone} type="button">{submitting ? <Loader2 className="spin" size={24} /> : <Copy size={24} />} BẮT ĐẦU NHÂN BẢN <span>-1,000 TÍN DỤNG</span><ChevronRight /></button>{status && <p className="form-status">{status}</p>}</div>
       <footer className="modal-foot"><span>● 0 TỔNG SỐ GIỌNG NÓI ĐÃ ĐĂNG KÝ</span><span>■ ĐÃ CHỌN &nbsp;&nbsp; ■ CÓ SẴN</span></footer>
     </div></div>
+  );
+}
+
+function AffiliateWorkspace() {
+  const [enrolled, setEnrolled] = useState(false);
+  const [affiliateCode, setAffiliateCode] = useState('');
+  const [earnings, setEarnings] = useState({ total_earnings_usd: 0, pending_balance_usd: 0 });
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutMethod, setPayoutMethod] = useState('bank_transfer');
+  const [payoutDest, setPayoutDest] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.affiliateProfile().then((profile) => {
+      setEnrolled(true);
+      setAffiliateCode(profile.referral_code);
+      api.affiliateEarnings().then(setEarnings).catch(() => undefined);
+    }).catch(() => setEnrolled(false));
+  }, []);
+
+  async function handleEnroll() {
+    setLoading(true);
+    try {
+      const profile = await api.affiliateEnroll();
+      setEnrolled(true);
+      setAffiliateCode(profile.referral_code);
+      setToast('Đã đăng ký chương trình tiếp thị liên kết!');
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Không thể đăng ký.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRequestPayout() {
+    if (!payoutAmount || !payoutDest) {
+      setToast('Điền đủ số tiền và địa chỉ thanh toán.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const payout = await api.requestPayout(parseFloat(payoutAmount), payoutMethod, payoutDest);
+      setToast(`Đã yêu cầu rút tiền ${payoutAmount} USD. Trạng thái: ${payout.status}`);
+      setPayoutAmount('');
+      setPayoutDest('');
+      api.affiliateEarnings().then(setEarnings).catch(() => undefined);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Không thể yêu cầu rút tiền.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="workspace affiliate-page">
+      {!enrolled ? (
+        <div className="affiliate-card">
+          <span className="project-chip">Affiliate</span>
+          <h1>Tiếp thị liên kết</h1>
+          <p>Tham gia chương trình tiếp thị liên kết để kiếm hoa hồng từ mỗi khách hàng mà bạn giới thiệu.</p>
+          <button className="primary-pill" disabled={loading} onClick={handleEnroll} type="button">{loading ? <Loader2 className="spin" size={18} /> : <WalletCards size={18} />} Đăng ký ngay</button>
+        </div>
+      ) : (
+        <div className="affiliate-dashboard">
+          <div className="affiliate-header">
+            <div><h1>Chương trình tiếp thị liên kết</h1><p>Mã giới thiệu: <code>{affiliateCode}</code></p></div>
+          </div>
+          <div className="affiliate-stats">
+            <article><strong>{earnings.total_earnings_usd.toFixed(2)}</strong><span>Tổng hoa hồng (USD)</span></article>
+            <article><strong>{earnings.pending_balance_usd.toFixed(2)}</strong><span>Sẵn sàng rút (USD)</span></article>
+          </div>
+          <article className="payout-form">
+            <h2>Yêu cầu rút tiền</h2>
+            <div className="payout-inputs">
+              <input type="number" placeholder="Số tiền (USD)" value={payoutAmount} onChange={(e) => setPayoutAmount(e.target.value)} step="0.01" />
+              <select value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value)}>
+                <option value="bank_transfer">Chuyển khoản ngân hàng</option>
+                <option value="paypal">PayPal</option>
+                <option value="stripe">Stripe</option>
+              </select>
+              <input type="text" placeholder="Địa chỉ PayPal / Tài khoản ngân hàng" value={payoutDest} onChange={(e) => setPayoutDest(e.target.value)} />
+            </div>
+            <button className="primary-pill" disabled={loading || earnings.pending_balance_usd <= 0} onClick={handleRequestPayout} type="button">{loading ? <Loader2 className="spin" size={18} /> : <ShoppingCart size={18} />} Yêu cầu rút tiền</button>
+          </article>
+        </div>
+      )}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+    </section>
   );
 }
 

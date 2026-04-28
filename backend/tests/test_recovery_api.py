@@ -21,7 +21,11 @@ def test_recovery_runbook_create_list_execute(client):
     assert execute.json()["verification_status"] == "pass"
 
 
-def test_recovery_drill_requires_last_safe_policy_then_passes(client):
+def test_recovery_drill_requires_last_safe_policy_then_passes(client, db_session):
+    from app.models.remediation import LastSafePolicy
+    db_session.query(LastSafePolicy).delete()
+    db_session.commit()
+
     drill_before = client.post(
         "/api/v1/recovery/drill",
         json={"policy_version": "policy-current", "simulate": True},

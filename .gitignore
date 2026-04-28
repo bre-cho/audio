@@ -1,3 +1,49 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.pycache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# Artifacts / storage
+/artifacts/
+/tmp/
+*.wav
+*.mp3
+
+# Extracted patches (working dir, not source)
 extracted/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml

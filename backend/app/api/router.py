@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 from app.api import (
+	affiliate,
+	ai_effects,
 	audio,
 	baselines,
 	billing,
@@ -31,3 +33,5 @@ api_router.include_router(remediation.router, prefix='/remediation', tags=['reme
 api_router.include_router(recovery.router, prefix='/recovery', tags=['recovery'])
 api_router.include_router(billing.router, prefix='/billing', tags=['billing'])
 api_router.include_router(observability.router, prefix='/observability', tags=['observability'])
+api_router.include_router(affiliate.router, prefix='/affiliate', tags=['affiliate'])
+api_router.include_router(ai_effects.router, tags=['ai-effects'])
