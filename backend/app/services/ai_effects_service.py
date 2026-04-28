@@ -75,7 +75,7 @@ class AudioEffectsService:
         Cost: 100 credits for any effect application.
         """
         # Reserve credits
-        if not self.credits.has_sufficient_balance(user_id, 100):
+        if self.credits.get_balance(user_id) < 100:
             raise ValueError("Insufficient credits to apply effect")
 
         job_data = {
@@ -89,13 +89,11 @@ class AudioEffectsService:
             job_type='audio_effect',
             request_json=job_data,
             idempotency_key=idempotency_key,
-            expected_credits=100
         )
 
         if created:
-            self.credits.reserve_credits(user_id, 100, job.id)
-
-            from app.workers.audio_tasks import enqueue_audio_effect_job  # avoid circular at module level
+            self.credits.add_event(user_id=user_id, delta_credits=-100, event_type="effect_charge", job_id=job.id)
+            from app.workers.audio_tasks import enqueue_audio_effect_job
             enqueue_audio_effect_job(str(job.id))
         return job
 

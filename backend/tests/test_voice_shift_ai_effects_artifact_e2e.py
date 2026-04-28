@@ -40,6 +40,7 @@ def test_voice_shift_job_writes_real_artifact(client, monkeypatch):
 
 
 def test_ai_effect_job_writes_real_artifact(client, monkeypatch):
+    monkeypatch.setattr("app.repositories.credit_repo.CreditRepository.get_balance", lambda self, uid: 1000)
     wav_bytes = _make_wav_bytes(freq_hz=330.0)
     params = '{"delay_ms":250,"feedback_ratio":0.5}'
     resp = client.post(
