@@ -3,8 +3,9 @@ import type { BillingBalanceOut, JobStatusOut, ProjectOut, ProviderOut, VoiceOut
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    headers: isFormData ? init?.headers : { 'Content-Type': 'application/json', ...(init?.headers || {}) },
     ...init
   });
 
@@ -17,6 +18,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  jobsStreamUrl: () => `${API_BASE}/jobs/stream`,
   providers: () => request<ProviderOut[]>('/providers'),
   voices: (params?: { provider?: string; source_type?: string; language_code?: string }) => {
     const qs = new URLSearchParams();
@@ -27,9 +29,17 @@ export const api = {
   balance: () => request<BillingBalanceOut>('/billing/balance'),
   jobs: () => request<JobStatusOut[]>('/jobs'),
   projects: () => request<ProjectOut[]>('/projects'),
+  project: (projectId: string) => request<ProjectOut>(`/projects/${projectId}`),
   createProject: (title: string) => request<ProjectOut>('/projects', {
     method: 'POST',
     body: JSON.stringify({ title, project_type: 'audio', status: 'draft', settings_json: {} })
+  }),
+  addProjectScript: (projectId: string, payload: Record<string, unknown>) => request<{ script_asset_id: string }>(`/projects/${projectId}/scripts`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  batchGenerateProject: (projectId: string) => request<JobStatusOut>(`/projects/${projectId}/batch-generate`, {
+    method: 'POST'
   }),
   ttsGenerate: (payload: Record<string, unknown>) => request<JobStatusOut>('/tts/generate', {
     method: 'POST',
@@ -47,7 +57,11 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(payload)
   }),
-  uploadCloneSample: () => request<{ file_id: string; upload_url?: string | null }>('/voice-clone/upload', { method: 'POST' }),
+  uploadCloneSample: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{ file_id: string; upload_url?: string | null }>('/voice-clone/upload', { method: 'POST', body: formData });
+  },
   createClone: (payload: Record<string, unknown>) => request<JobStatusOut>('/voice-clone/create', {
     method: 'POST',
     body: JSON.stringify(payload)
@@ -55,5 +69,20 @@ export const api = {
   clonePreview: (voiceId: string, text: string) => request<JobStatusOut>(`/voice-clone/${voiceId}/preview`, {
     method: 'POST',
     body: JSON.stringify({ text })
+  }),
+  shiftVoice: (file: File, pitchSemitones: number = 0) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const param = new URLSearchParams();
+    param.set('pitch_semitones', String(pitchSemitones));
+    return request<JobStatusOut>(`/voice-clone/shift?${param.toString()}`, { method: 'POST', body: formData });
+  },
+  affiliateEnroll: () => request<{ id: string; user_id: string; referral_code: string; name: string }>('/affiliate/enroll', { method: 'POST' }),
+  affiliateProfile: () => request<{ id: string; user_id: string; referral_code: string; name: string }>('/affiliate/me'),
+  affiliateEarnings: () => request<{ total_earnings_usd: number; pending_balance_usd: number }>('/affiliate/earnings'),
+  affiliatePayouts: () => request<Array<{ id: string; amount_cents: number; status: string; payout_method: string }>>('/affiliate/payouts'),
+  requestPayout: (amountUsd: number, method: string, destination: string) => request<{ id: string; status: string }>('/affiliate/payout', {
+    method: 'POST',
+    body: JSON.stringify({ amount_cents: Math.round(amountUsd * 100), payout_method: method, payout_destination: destination })
   })
 };

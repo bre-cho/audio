@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -15,4 +15,4 @@ class Provider(Base):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default='active')
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     config_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

@@ -10,3 +10,5 @@ python-multipart
 httpx
 aiofiles
 alembic
+boto3
+PyJWT
