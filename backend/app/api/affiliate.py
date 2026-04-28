@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+import re
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user_id, get_db
+from app.core.rate_limit import rate_limit
 from app.schemas.affiliate import UserAffiliateOut, PayoutCreateRequest, PayoutOut, ReferralOut, CommissionOut
 from app.services.affiliate_service import AffiliateService
+
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 router = APIRouter()
 
@@ -21,8 +25,10 @@ def get_current_affiliate(
 
 @router.post('/enroll', response_model=UserAffiliateOut)
 def enroll_affiliate(
+    request: Request,
     db: Session = Depends(get_db),
     user_id=Depends(get_current_user_id),
+    _rl: None = Depends(rate_limit(5, 60)),
 ) -> UserAffiliateOut:
     """Enroll current user as affiliate."""
     service = AffiliateService(db)
@@ -35,8 +41,15 @@ def enroll_affiliate(
 
 
 @router.get('/code/{referral_code}', response_model=UserAffiliateOut | None)
-def lookup_referral_code(referral_code: str, db: Session = Depends(get_db)) -> UserAffiliateOut | None:
-    """Look up an affiliate by referral code."""
+def lookup_referral_code(
+    referral_code: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _rl: None = Depends(rate_limit(10, 60)),
+) -> UserAffiliateOut | None:
+    """Look up an affiliate by referral code (rate-limited: 10/min per IP)."""
+    if not referral_code.isalnum() or len(referral_code) > 20:
+        raise HTTPException(status_code=400, detail='Invalid referral code format')
     service = AffiliateService(db)
     affiliate = service.get_referral_code(referral_code)
     return UserAffiliateOut.model_validate(affiliate) if affiliate else None
@@ -62,6 +75,8 @@ def add_referral(
     user_id=Depends(get_current_user_id),
 ) -> ReferralOut:
     """Track a referral for current affiliate."""
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail='Invalid email address')
     service = AffiliateService(db)
     affiliate = service.get_affiliate(user_id)
     if not affiliate:

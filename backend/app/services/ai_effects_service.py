@@ -49,12 +49,16 @@ class AudioEffectsService:
         """Get all presets for a user."""
         return self.db.query(UserAudioEffectPreset).filter_by(user_id=user_id).all()
 
-    def delete_preset(self, preset_id: uuid.UUID) -> None:
-        """Delete a user preset."""
+    def delete_preset(self, preset_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Delete a user preset. Returns True if deleted, False if not found, raises on ownership mismatch."""
         preset = self.db.query(UserAudioEffectPreset).filter_by(id=preset_id).first()
-        if preset:
-            self.db.delete(preset)
-            self.db.commit()
+        if not preset:
+            return False
+        if preset.user_id != user_id:
+            raise PermissionError('Preset belongs to a different user')
+        self.db.delete(preset)
+        self.db.commit()
+        return True
 
     def apply_effect(
         self,

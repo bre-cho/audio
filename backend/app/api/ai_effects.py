@@ -50,10 +50,19 @@ def create_preset(
 
 
 @router.delete('/presets/{preset_id}')
-def delete_preset(preset_id: UUID, db: Session = Depends(get_db)):
-    """Delete a user preset."""
+def delete_preset(
+    preset_id: UUID,
+    db: Session = Depends(get_db),
+    user_id=Depends(get_current_user_id),
+):
+    """Delete a user preset (only owner can delete)."""
     service = AudioEffectsService(db)
-    service.delete_preset(preset_id)
+    try:
+        found = service.delete_preset(preset_id, user_id)
+    except PermissionError:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Not your preset')
+    if not found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Preset not found')
     return {'status': 'deleted'}
 
 
