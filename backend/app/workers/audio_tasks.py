@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import io
 import logging
+import struct
 from datetime import UTC, datetime
 from uuid import UUID
+import wave as wav
 
 from app.audio_factory import AudioFactoryExecutor, AudioJobFinalizer, AudioTaskRequest, AudioWorkflowType
 from app.core.config import settings
@@ -24,18 +27,20 @@ def _is_strict_runtime() -> bool:
 
 
 def _call_real_provider(task: AudioTaskRequest, provider: str) -> dict | None:
-    """Try to call a real TTS provider. Returns artifact dict on success, None if no API key."""
     if provider == "elevenlabs":
         if not settings.elevenlabs_api_key:
             if _is_strict_runtime():
                 raise RuntimeError("Missing ELEVENLABS_API_KEY in production-like runtime")
             return None
         from app.providers.elevenlabs import ElevenLabsProvider
-        result = ElevenLabsProvider().generate_speech({
-            "voice_id": task.voice_id,
-            "text": task.text or "",
-            "model_id": task.model_version,
-        })
+
+        result = ElevenLabsProvider().generate_speech(
+            {
+                "voice_id": task.voice_id,
+                "text": task.text or "",
+                "model_id": task.model_version,
+            }
+        )
         audio_bytes: bytes = result.get("audio_bytes") or b""
         if not audio_bytes:
             return None
@@ -48,19 +53,21 @@ def _call_real_provider(task: AudioTaskRequest, provider: str) -> dict | None:
         return {
             "preview_url": stored.public_url,
             "output_url": stored.public_url,
-            "artifacts": [{
-                "artifact_type": "output",
-                "storage_key": stored.key,
-                "path": stored.path or "",
-                "url": stored.public_url or f"/artifacts/{storage_key}",
-                "mime_type": stored.mime_type or mime_type,
-                "size_bytes": stored.size_bytes or len(audio_bytes),
-                "checksum": stored.checksum or checksum,
-                "provider": provider,
-                "contract_pass": True,
-                "lineage_pass": True,
-                "write_integrity_pass": True,
-            }],
+            "artifacts": [
+                {
+                    "artifact_type": "output",
+                    "storage_key": stored.key,
+                    "path": stored.path or "",
+                    "url": stored.public_url or f"/artifacts/{storage_key}",
+                    "mime_type": stored.mime_type or mime_type,
+                    "size_bytes": stored.size_bytes or len(audio_bytes),
+                    "checksum": stored.checksum or checksum,
+                    "provider": provider,
+                    "contract_pass": True,
+                    "lineage_pass": True,
+                    "write_integrity_pass": True,
+                }
+            ],
         }
     return None
 
@@ -68,23 +75,13 @@ def _call_real_provider(task: AudioTaskRequest, provider: str) -> dict | None:
 class _WorkerAudioRuntime:
     def run(self, task: AudioTaskRequest, workflow_spec: dict) -> dict:
         del workflow_spec
-        provider = resolve_audio_provider(
-            requested_provider=task.provider,
-            default_provider="internal_genvoice",
-        )
-        # Attempt real provider call; fall back to silent WAV placeholder when no API key
+        provider = resolve_audio_provider(requested_provider=task.provider, default_provider="internal_genvoice")
         real_result = _call_real_provider(task, provider)
         if real_result is not None:
             return real_result
         if _is_strict_runtime() and provider in _EXTERNAL_TTS_PROVIDERS:
-            raise RuntimeError(
-                f"Refusing placeholder fallback for provider '{provider}' in production-like runtime"
-            )
-        return write_audio_artifacts(
-            task.source_job_id or "",
-            request_json=task.request_json,
-            provider=provider,
-        )
+            raise RuntimeError(f"Refusing placeholder fallback for provider '{provider}' in production-like runtime")
+        return write_audio_artifacts(task.source_job_id or "", request_json=task.request_json, provider=provider)
 
 
 def _update_job(job_id: str, **kwargs) -> None:
@@ -150,10 +147,7 @@ def _build_task_request(job_id: str, snapshot: dict | None, workflow_type: Audio
         voice_id=str(voice_id) if voice_id is not None else None,
         provider=payload.get("provider") or "internal_genvoice",
         model_version=payload.get("model"),
-        metadata={
-            "job_type": (snapshot or {}).get("job_type"),
-            "workflow_type": workflow_type.value,
-        },
+        metadata={"job_type": (snapshot or {}).get("job_type"), "workflow_type": workflow_type.value},
     )
 
 
@@ -210,6 +204,22 @@ def enqueue_conversation_job(job_id: str) -> None:
 
 def enqueue_batch_job(job_id: str) -> None:
     process_batch_job.delay(job_id)
+
+
+def enqueue_audio_effect_job(job_id: str) -> None:
+    try:
+        process_audio_effect_job.delay(job_id)
+    except Exception as exc:
+        logger.warning("Falling back to inline audio effect execution for %s: %s", job_id, exc)
+        process_audio_effect_job.run(job_id)
+
+
+def enqueue_voice_shift_job(job_id: str) -> None:
+    try:
+        process_voice_shift_job.delay(job_id)
+    except Exception as exc:
+        logger.warning("Falling back to inline voice shift execution for %s: %s", job_id, exc)
+        process_voice_shift_job.run(job_id)
 
 
 @celery_app.task(name="audio.process_tts_job", bind=True, max_retries=3)
@@ -281,4 +291,158 @@ def process_batch_job(self, job_id: str) -> dict:
             _update_job(job_id, status="failed", error_code="audio_task_error", error_message=str(exc), finished_at=datetime.now(UTC))
         else:
             _update_job(job_id, status="retrying", error_code="audio_task_retrying", error_message=str(exc))
+        raise self.retry(exc=exc, countdown=10)
+
+
+def _wav_to_samples(raw: bytes, sample_width: int) -> list[int]:
+    if sample_width == 2:
+        return [struct.unpack_from("<h", raw, i)[0] for i in range(0, len(raw), 2)]
+    if sample_width == 1:
+        return [raw[i] - 128 for i in range(len(raw))]
+    raise ValueError("Unsupported sample width")
+
+
+def _samples_to_wav_bytes(samples: list[int], sample_width: int, channels: int, framerate: int) -> bytes:
+    if sample_width != 2:
+        raise ValueError("Only 16-bit PCM WAV is supported")
+    clamped = [max(-32768, min(32767, int(s))) for s in samples]
+    raw = struct.pack(f"<{len(clamped)}h", *clamped)
+    buf = io.BytesIO()
+    with wav.open(buf, "wb") as out:
+        out.setnchannels(channels)
+        out.setsampwidth(sample_width)
+        out.setframerate(framerate)
+        out.writeframes(raw)
+    return buf.getvalue()
+
+
+@celery_app.task(name="audio.process_audio_effect_job", bind=True, max_retries=3)
+def process_audio_effect_job(self, job_id: str) -> dict:
+    try:
+        _update_job(job_id, status="processing", started_at=datetime.now(UTC))
+        snapshot = _get_job_snapshot(job_id)
+        if snapshot is None:
+            raise RuntimeError(f"Job {job_id} not found")
+
+        req = snapshot.get("request_json") or {}
+        effect_type = str(req.get("effect_type", "echo"))
+        parameters = req.get("parameters") or {}
+        input_file_key = str(req.get("input_file_key", ""))
+        if not input_file_key:
+            raise ValueError("request_json missing input_file_key")
+
+        storage = StorageService()
+        input_bytes = storage.get_bytes(input_file_key)
+        degraded = False
+
+        try:
+            with wav.open(io.BytesIO(input_bytes), "rb") as w:
+                channels = w.getnchannels()
+                sample_width = w.getsampwidth()
+                framerate = w.getframerate()
+                raw_frames = w.readframes(w.getnframes())
+
+            samples = _wav_to_samples(raw_frames, sample_width)
+            if effect_type == "echo":
+                delay_ms = float(parameters.get("delay_ms", 250))
+                feedback = float(parameters.get("feedback_ratio", 0.5))
+                delay_samples = max(1, int(framerate * delay_ms / 1000)) * channels
+                out = samples[:]
+                for i in range(delay_samples, len(out)):
+                    out[i] = int(out[i] + out[i - delay_samples] * feedback)
+                processed = out
+            elif effect_type == "eq":
+                gain = 10 ** (float(parameters.get("mid_db", 0.0)) / 20.0)
+                processed = [int(s * gain) for s in samples]
+            elif effect_type == "reverb":
+                wet = float(parameters.get("wet", 0.25))
+                tap = max(1, int(0.03 * framerate)) * channels
+                out = samples[:]
+                for i in range(tap, len(out)):
+                    out[i] = int((1 - wet) * out[i] + wet * out[i - tap])
+                processed = out
+            else:
+                processed = samples
+
+            out_bytes = _samples_to_wav_bytes(processed, sample_width, channels, framerate)
+        except Exception:
+            out_bytes = input_bytes
+            degraded = True
+
+        out_key = f"audio/effects/{effect_type}/{job_id}.wav"
+        stored = storage.put_bytes(out_key, out_bytes, "audio/wav")
+        runtime = {
+            "output_url": stored.public_url,
+            "storage_key": stored.key,
+            "checksum": stored.checksum,
+            "effect_type": effect_type,
+            "parameters": parameters,
+            "degraded": degraded,
+            "provider": "internal_dsp",
+        }
+        _update_job(job_id, status="done", output_url=stored.public_url, runtime_json=runtime, finished_at=datetime.now(UTC))
+        return {"job_id": job_id, "status": "succeeded", **runtime}
+    except Exception as exc:
+        logger.exception("Audio effect task failed for %s", job_id)
+        if _should_fail_task(self):
+            _update_job(job_id, status="failed", error_code="audio_effect_error", error_message=str(exc), finished_at=datetime.now(UTC))
+        else:
+            _update_job(job_id, status="retrying", error_code="audio_effect_retrying", error_message=str(exc))
+        raise self.retry(exc=exc, countdown=10)
+
+
+@celery_app.task(name="audio.process_voice_shift_job", bind=True, max_retries=3)
+def process_voice_shift_job(self, job_id: str) -> dict:
+    try:
+        _update_job(job_id, status="processing", started_at=datetime.now(UTC))
+        snapshot = _get_job_snapshot(job_id)
+        if snapshot is None:
+            raise RuntimeError(f"Job {job_id} not found")
+
+        req = snapshot.get("request_json") or {}
+        sample_file_key = str(req.get("sample_file_id", ""))
+        pitch_semitones = float(req.get("pitch_semitones", 0.0))
+        if not sample_file_key:
+            raise ValueError("request_json missing sample_file_id")
+
+        storage = StorageService()
+        input_bytes = storage.get_bytes(sample_file_key)
+        degraded = False
+
+        try:
+            shift_ratio = 2 ** (pitch_semitones / 12.0)
+            with wav.open(io.BytesIO(input_bytes), "rb") as w:
+                channels = w.getnchannels()
+                sample_width = w.getsampwidth()
+                framerate = w.getframerate()
+                raw_frames = w.readframes(w.getnframes())
+
+            samples = _wav_to_samples(raw_frames, sample_width)
+            # Resample by nearest-neighbor index mapping
+            new_len = max(1, int(len(samples) / max(shift_ratio, 0.01)))
+            resampled = [samples[min(len(samples) - 1, int(i * shift_ratio))] for i in range(new_len)]
+            out_bytes = _samples_to_wav_bytes(resampled, sample_width, channels, framerate)
+        except Exception:
+            out_bytes = input_bytes
+            degraded = True
+
+        out_key = f"audio/voice-shift/{job_id}.wav"
+        stored = storage.put_bytes(out_key, out_bytes, "audio/wav")
+        runtime = {
+            "output_url": stored.public_url,
+            "storage_key": stored.key,
+            "checksum": stored.checksum,
+            "size_bytes": stored.size_bytes,
+            "pitch_semitones": pitch_semitones,
+            "degraded": degraded,
+            "provider": "internal_shift",
+        }
+        _update_job(job_id, status="done", output_url=stored.public_url, runtime_json=runtime, finished_at=datetime.now(UTC))
+        return {"job_id": job_id, "status": "succeeded", **runtime}
+    except Exception as exc:
+        logger.exception("Voice shift task failed for %s", job_id)
+        if _should_fail_task(self):
+            _update_job(job_id, status="failed", error_code="voice_shift_error", error_message=str(exc), finished_at=datetime.now(UTC))
+        else:
+            _update_job(job_id, status="retrying", error_code="voice_shift_retrying", error_message=str(exc))
         raise self.retry(exc=exc, countdown=10)

@@ -24,11 +24,7 @@ def compute_sha256(data: bytes) -> str:
 
 
 class StorageService:
-    """Storage abstraction with local and S3 backends.
-
-    The service keeps a stable contract (`key`, `public_url`, `size`, `checksum`)
-    regardless of where bytes are persisted.
-    """
+    """Storage abstraction with local and S3 backends."""
 
     def __init__(self, root_dir: str | Path | None = None, public_prefix: str = "/artifacts") -> None:
         self.backend = (settings.storage_backend or "local").lower().strip()
@@ -90,7 +86,7 @@ class StorageService:
     def _build_s3_client(self):
         try:
             import boto3
-        except ImportError as exc:  # pragma: no cover - guarded in runtime configuration
+        except ImportError as exc:  # pragma: no cover
             raise RuntimeError("S3 backend requires boto3. Add boto3 to requirements.") from exc
 
         return boto3.client(
@@ -131,3 +127,47 @@ class StorageService:
             size_bytes=len(data),
             checksum=checksum,
         )
+
+    def get_bytes(self, key: str) -> bytes:
+        """Read raw bytes from storage. Raises FileNotFoundError if missing."""
+        clean_key = key.lstrip("/")
+        if self.backend == "s3":
+            return self._get_bytes_s3(clean_key)
+        return self._get_bytes_local(clean_key)
+
+    def _get_bytes_local(self, clean_key: str) -> bytes:
+        path = self._resolve_path(clean_key)
+        if not path.exists():
+            raise FileNotFoundError(f"Artifact not found: {clean_key}")
+        return path.read_bytes()
+
+    def _get_bytes_s3(self, clean_key: str) -> bytes:
+        if not self.s3_bucket:
+            raise RuntimeError("S3 backend requires S3_BUCKET to be configured")
+        client = self._build_s3_client()
+        try:
+            response = client.get_object(Bucket=self.s3_bucket, Key=clean_key)
+            return response["Body"].read()
+        except Exception as exc:
+            raise FileNotFoundError(f"S3 object not found: {clean_key}") from exc
+
+    def delete(self, key: str) -> bool:
+        """Delete an object. Returns True if deleted, False if not found."""
+        clean_key = key.lstrip("/")
+        if self.backend == "s3":
+            return self._delete_s3(clean_key)
+        return self._delete_local(clean_key)
+
+    def _delete_local(self, clean_key: str) -> bool:
+        path = self._resolve_path(clean_key)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
+    def _delete_s3(self, clean_key: str) -> bool:
+        if not self.s3_bucket:
+            raise RuntimeError("S3 backend requires S3_BUCKET to be configured")
+        client = self._build_s3_client()
+        client.delete_object(Bucket=self.s3_bucket, Key=clean_key)
+        return True

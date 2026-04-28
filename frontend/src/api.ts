@@ -93,5 +93,19 @@ export const api = {
   requestPayout: (amountUsd: number, method: string, destination: string) => request<{ id: string; status: string }>('/affiliate/payout', {
     method: 'POST',
     body: JSON.stringify({ amount_cents: Math.round(amountUsd * 100), payout_method: method, payout_destination: destination })
-  })
+  }),
+  providerHealth: () => request<{ providers: Record<string, { status: string; detail: string }>; storage_backend: string }>('/providers/health'),
+  governanceBaselines: () => request<Array<{ baseline_id: string; baseline_type: string; lifecycle_state: string; created_at: string }>>('/baselines'),
+  governanceDecisions: () => request<Array<{ decision_id: string; title: string; outcome: string; created_at: string }>>('/decisions'),
+  governanceRemediations: () => request<Array<{ remediation_id: string; title: string; status: string; created_at: string }>>('/remediation'),
+  // AI Effects
+  aiEffects: () => request<Array<{ id: string; name: string; effect_type: string; description: string; default_params: Record<string, number> }>>('/ai-effects/effects'),
+  applyEffect: (file: File, effectType: string, parameters: Record<string, number>) => {
+    const qs = new URLSearchParams();
+    qs.set('effect_type', effectType);
+    qs.set('parameters', JSON.stringify(parameters));
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<import('./types').JobStatusOut>(`/ai-effects/apply?${qs.toString()}`, { method: 'POST', body: formData });
+  }
 };

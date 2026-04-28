@@ -1,5 +1,5 @@
 export type ProviderCode = 'elevenlabs' | 'minimax' | 'internal_genvoice';
-export type Screen = 'tts' | 'conversation' | 'voiceChanger' | 'studio' | 'library' | 'history' | 'affiliate' | 'aiEffects';
+export type Screen = 'tts' | 'conversation' | 'voiceChanger' | 'studio' | 'library' | 'history' | 'affiliate' | 'aiEffects' | 'governance';
 
 export interface ProviderOut {
   code: ProviderCode | string;

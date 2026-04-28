@@ -323,6 +323,8 @@ export default function App() {
         {screen === 'studio' && <StudioWorkspace projects={projects} selectedProjectId={selectedProjectId} onCreate={handleCreateProject} onSelectProject={setSelectedProjectId} onSaveScript={handleSaveProjectScript} onRenderProject={handleRenderProject} busy={studioBusy} />}
         {screen === 'history' && <HistoryWorkspace jobs={jobs} />}
         {screen === 'affiliate' && <AffiliateWorkspace />}
+        {screen === 'aiEffects' && <AiEffectsWorkspace />}
+        {screen === 'governance' && <GovernanceWorkspace />}
       </main>
       <ConfigPanel
         provider={provider}
@@ -358,7 +360,8 @@ function Sidebar({ screen, setScreen }: { screen: Screen; setScreen: (screen: Sc
     { group: 'Công cụ', rows: [
       { id: 'affiliate' as Screen, label: 'Tiếp thị liên kết', icon: WalletCards },
       { id: 'studio' as Screen, label: 'Xưởng âm thanh', icon: Grid2X2, badge: 'MỚI' },
-      { id: 'aiEffects' as Screen, label: 'Hiệu ứng AI', icon: Sparkles, badge: 'Sắp ra mắt', disabled: true }
+      { id: 'aiEffects' as Screen, label: 'Hiệu ứng AI', icon: Sparkles },
+      { id: 'governance' as Screen, label: 'Governance', icon: SlidersHorizontal, badge: 'OPS' }
     ] }
   ];
 
@@ -375,8 +378,8 @@ function Sidebar({ screen, setScreen }: { screen: Screen; setScreen: (screen: Sc
               return (
                 <button
                   key={item.id}
-                  className={cx('nav-item', active && 'active', item.disabled && 'disabled')}
-                  onClick={() => !item.disabled && setScreen(item.id)}
+                  className={cx('nav-item', active && 'active', (item as { disabled?: boolean }).disabled && 'disabled')}
+                  onClick={() => !(item as { disabled?: boolean }).disabled && setScreen(item.id)}
                   type="button"
                 >
                   <Icon size={18} />
@@ -402,7 +405,8 @@ function TopBar({ screen }: { screen: Screen }) {
     library: 'Thư viện giọng nói',
     history: 'Lịch sử',
     affiliate: 'Tiếp thị liên kết',
-    aiEffects: 'Hiệu ứng AI'
+    aiEffects: 'Hiệu ứng AI',
+    governance: 'Governance Dashboard'
   };
   return (
     <header className="topbar">
@@ -759,7 +763,7 @@ function AffiliateWorkspace() {
               <select value={payoutMethod} onChange={(e) => setPayoutMethod(e.target.value)}>
                 <option value="bank_transfer">Chuyển khoản ngân hàng</option>
                 <option value="paypal">PayPal</option>
-                <option value="stripe">Stripe</option>
+                <option value="crypto_usdc">USDC (Crypto)</option>
               </select>
               <input type="text" placeholder="Địa chỉ PayPal / Tài khoản ngân hàng" value={payoutDest} onChange={(e) => setPayoutDest(e.target.value)} />
             </div>
@@ -768,6 +772,134 @@ function AffiliateWorkspace() {
         </div>
       )}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+    </section>
+  );
+}
+
+function AiEffectsWorkspace() {
+  type Effect = { id: string; name: string; effect_type: string; description: string; default_params: Record<string, number> };
+  const [effects, setEffects] = useState<Effect[]>([]);
+  const [selected, setSelected] = useState<Effect | null>(null);
+  const [params, setParams] = useState<Record<string, number>>({});
+  const [file, setFile] = useState<File | null>(null);
+  const [job, setJob] = useState<JobStatusOut | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.aiEffects().then(setEffects).catch(() => {});
+  }, []);
+
+  function selectEffect(e: Effect) {
+    setSelected(e);
+    setParams({ ...e.default_params });
+    setJob(null);
+    setErr(null);
+  }
+
+  async function applyEffect() {
+    if (!file || !selected) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const j = await api.applyEffect(file, selected.effect_type, params);
+      setJob(j);
+    } catch (error: unknown) {
+      setErr(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="workspace">
+      <h1>Hiệu ứng AI</h1>
+      <p style={{ color: 'var(--muted)', marginBottom: '1.5rem' }}>Áp dụng hiệu ứng âm thanh lên file audio của bạn.</p>
+      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+        <div style={{ flex: '0 0 240px' }}>
+          <h3 style={{ marginBottom: '.75rem' }}>Chọn hiệu ứng</h3>
+          {effects.length === 0 && <p style={{ color: 'var(--muted)' }}>Đang tải...</p>}
+          {effects.map((e) => (
+            <button
+              key={e.id}
+              onClick={() => selectEffect(e)}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '.6rem .9rem',
+                marginBottom: '.4rem', borderRadius: '8px', border: '1.5px solid',
+                borderColor: selected?.id === e.id ? 'var(--accent)' : 'var(--border)',
+                background: selected?.id === e.id ? 'var(--accent-soft, rgba(99,102,241,.1))' : 'transparent',
+                cursor: 'pointer', color: 'var(--fg)'
+              }}
+              type="button"
+            >
+              <strong>{e.name}</strong><br />
+              <small style={{ color: 'var(--muted)' }}>{e.description}</small>
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: '1 1 320px' }}>
+          {!selected && <p style={{ color: 'var(--muted)', marginTop: '3rem' }}>Chọn một hiệu ứng để bắt đầu.</p>}
+          {selected && (
+            <>
+              <h3 style={{ marginBottom: '.75rem' }}>Tham số: {selected.name}</h3>
+              {Object.entries(params).map(([k, v]) => (
+                <label key={k} style={{ display: 'block', marginBottom: '.75rem' }}>
+                  <span style={{ fontSize: '.85rem', color: 'var(--muted)' }}>{k}: <strong>{v}</strong></span>
+                  <input
+                    type="range"
+                    min={-30}
+                    max={3000}
+                    step={0.01}
+                    value={v}
+                    onChange={(ev) => setParams((p) => ({ ...p, [k]: parseFloat(ev.target.value) }))}
+                    style={{ display: 'block', width: '100%', marginTop: '.25rem' }}
+                  />
+                </label>
+              ))}
+              <label className="upload-zone interactive-upload" style={{ marginTop: '1rem' }}>
+                <input type="file" accept="audio/*" onChange={(ev) => setFile(ev.target.files?.[0] || null)} />
+                {file ? `${file.name} • ${(file.size / 1024).toFixed(1)} KB` : 'Tải lên file audio'}
+              </label>
+              <button className="primary-pill" disabled={busy || !file} onClick={applyEffect} style={{ marginTop: '1rem' }} type="button">
+                {busy ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />} Áp dụng hiệu ứng
+              </button>
+              {err && <p style={{ color: 'var(--danger, #ef4444)', marginTop: '.5rem' }}>{err}</p>}
+              {job && <p style={{ marginTop: '.75rem' }}>Job đã tạo: <strong>{job.id}</strong> ({job.status})</p>}
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GovernanceWorkspace() {
+  const [providerHealth, setProviderHealth] = useState<Record<string, { status: string; detail: string }> | null>(null);
+  const [baselines, setBaselines] = useState<Array<{ baseline_id: string; baseline_type: string; lifecycle_state: string; created_at: string }>>([]);
+  const [decisions, setDecisions] = useState<Array<{ decision_id: string; title: string; outcome: string; created_at: string }>>([]);
+  const [remediations, setRemediations] = useState<Array<{ remediation_id: string; title: string; status: string; created_at: string }>>([]);
+
+  useEffect(() => {
+    api.providerHealth().then((x) => setProviderHealth(x.providers)).catch(() => setProviderHealth(null));
+    api.governanceBaselines().then(setBaselines).catch(() => setBaselines([]));
+    api.governanceDecisions().then(setDecisions).catch(() => setDecisions([]));
+    api.governanceRemediations().then(setRemediations).catch(() => setRemediations([]));
+  }, []);
+
+  return (
+    <section className="workspace history-page">
+      <h1>Governance Dashboard</h1>
+      <div className="history-list">
+        <article className="history-card">
+          <span>Provider Health</span>
+          <small>
+            {providerHealth ? Object.entries(providerHealth).map(([k, v]) => `${k}: ${v.status}`).join(' | ') : 'Chưa có dữ liệu'}
+          </small>
+        </article>
+        <article className="history-card"><span>Baselines</span><strong>{baselines.length}</strong><small>{baselines[0]?.baseline_type || 'N/A'}</small></article>
+        <article className="history-card"><span>Decisions</span><strong>{decisions.length}</strong><small>{decisions[0]?.outcome || 'N/A'}</small></article>
+        <article className="history-card"><span>Remediations</span><strong>{remediations.length}</strong><small>{remediations[0]?.status || 'N/A'}</small></article>
+      </div>
     </section>
   );
 }

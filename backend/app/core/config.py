@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     default_user_id: str = '00000000-0000-0000-0000-000000000001'
     elevenlabs_api_key: str | None = None
     minimax_api_key: str | None = None
+    provider_callback_token: str | None = None
     default_provider: str = 'elevenlabs'
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 

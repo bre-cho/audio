@@ -1,4 +1,6 @@
 """Service for audio effects processing."""
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, UTC
 from sqlalchemy.orm import Session
@@ -93,6 +95,8 @@ class AudioEffectsService:
         if created:
             self.credits.reserve_credits(user_id, 100, job.id)
 
+            from app.workers.audio_tasks import enqueue_audio_effect_job  # avoid circular at module level
+            enqueue_audio_effect_job(str(job.id))
         return job
 
     def initialize_default_effects(self) -> None:

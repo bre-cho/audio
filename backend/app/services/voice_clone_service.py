@@ -7,6 +7,7 @@ from app.repositories.job_repo import JobRepository
 from app.schemas.job import JobStatusOut
 from app.schemas.voice_clone import VoiceCloneCreateRequest, VoiceClonePreviewRequest
 from app.workers.clone_tasks import enqueue_clone_job, enqueue_clone_preview_job
+from app.workers.audio_tasks import enqueue_voice_shift_job
 
 
 class VoiceCloneService:
@@ -87,4 +88,5 @@ class VoiceCloneService:
                 event_type='reserve',
                 note='giu cho shift voice',
             )
+            enqueue_voice_shift_job(str(job.id))
         return JobStatusOut.model_validate(job)
