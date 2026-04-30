@@ -20,7 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    def _table_exists(table_name: str) -> bool:
+        return inspector.has_table(table_name)
+
+    def _ensure_index(table_name: str, index_name: str, columns: list[str]) -> None:
+        existing_indexes = {index["name"] for index in sa.inspect(bind).get_indexes(table_name)}
+        if index_name not in existing_indexes:
+            op.create_index(index_name, table_name, columns, unique=False)
+
+    if not _table_exists("baselines"):
+        op.create_table(
         "baselines",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("baseline_id", sa.String(length=120), nullable=False),
@@ -44,11 +56,12 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("baseline_id"),
-    )
-    op.create_index(op.f("ix_baselines_artifact_id"), "baselines", ["artifact_id"], unique=False)
-    op.create_index(op.f("ix_baselines_baseline_id"), "baselines", ["baseline_id"], unique=False)
+        )
+    _ensure_index("baselines", op.f("ix_baselines_artifact_id"), ["artifact_id"])
+    _ensure_index("baselines", op.f("ix_baselines_baseline_id"), ["baseline_id"])
 
-    op.create_table(
+    if not _table_exists("decision_records"):
+        op.create_table(
         "decision_records",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("decision_id", sa.String(length=120), nullable=False),
@@ -69,10 +82,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("decision_id"),
-    )
-    op.create_index(op.f("ix_decision_records_decision_id"), "decision_records", ["decision_id"], unique=False)
+        )
+    _ensure_index("decision_records", op.f("ix_decision_records_decision_id"), ["decision_id"])
 
-    op.create_table(
+    if not _table_exists("last_safe_policies"):
+        op.create_table(
         "last_safe_policies",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("policy_version", sa.String(length=120), nullable=False),
@@ -81,9 +95,10 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("policy_version"),
-    )
+        )
 
-    op.create_table(
+    if not _table_exists("remediation_records"):
+        op.create_table(
         "remediation_records",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("remediation_id", sa.String(length=120), nullable=False),
@@ -104,10 +119,11 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("remediation_id"),
-    )
-    op.create_index(op.f("ix_remediation_records_remediation_id"), "remediation_records", ["remediation_id"], unique=False)
+        )
+    _ensure_index("remediation_records", op.f("ix_remediation_records_remediation_id"), ["remediation_id"])
 
-    op.create_table(
+    if not _table_exists("runbooks"):
+        op.create_table(
         "runbooks",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("runbook_id", sa.String(length=120), nullable=False),
@@ -119,22 +135,35 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("runbook_id"),
-    )
-    op.create_index(op.f("ix_runbooks_runbook_id"), "runbooks", ["runbook_id"], unique=False)
+        )
+    _ensure_index("runbooks", op.f("ix_runbooks_runbook_id"), ["runbook_id"])
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_runbooks_runbook_id"), table_name="runbooks")
-    op.drop_table("runbooks")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    op.drop_index(op.f("ix_remediation_records_remediation_id"), table_name="remediation_records")
-    op.drop_table("remediation_records")
+    def _drop_index_if_exists(table_name: str, index_name: str) -> None:
+        existing_indexes = {index["name"] for index in sa.inspect(bind).get_indexes(table_name)} if inspector.has_table(table_name) else set()
+        if index_name in existing_indexes:
+            op.drop_index(index_name, table_name=table_name)
 
-    op.drop_table("last_safe_policies")
+    _drop_index_if_exists("runbooks", op.f("ix_runbooks_runbook_id"))
+    if inspector.has_table("runbooks"):
+        op.drop_table("runbooks")
 
-    op.drop_index(op.f("ix_decision_records_decision_id"), table_name="decision_records")
-    op.drop_table("decision_records")
+    _drop_index_if_exists("remediation_records", op.f("ix_remediation_records_remediation_id"))
+    if inspector.has_table("remediation_records"):
+        op.drop_table("remediation_records")
 
-    op.drop_index(op.f("ix_baselines_baseline_id"), table_name="baselines")
-    op.drop_index(op.f("ix_baselines_artifact_id"), table_name="baselines")
-    op.drop_table("baselines")
+    if inspector.has_table("last_safe_policies"):
+        op.drop_table("last_safe_policies")
+
+    _drop_index_if_exists("decision_records", op.f("ix_decision_records_decision_id"))
+    if inspector.has_table("decision_records"):
+        op.drop_table("decision_records")
+
+    _drop_index_if_exists("baselines", op.f("ix_baselines_baseline_id"))
+    _drop_index_if_exists("baselines", op.f("ix_baselines_artifact_id"))
+    if inspector.has_table("baselines"):
+        op.drop_table("baselines")

@@ -30,7 +30,7 @@ import {
   Filter
 } from 'lucide-react';
 import { api } from './api';
-import type { JobStatusOut, ProjectOut, ProviderCode, SettingsState, VoiceOut, Screen } from './types';
+import type { AudioCapabilitiesOut, JobStatusOut, ProjectOut, ProviderCode, SettingsState, VoiceOut, Screen } from './types';
 
 const fallbackVoices: VoiceOut[] = [
   { id: 'bella', name: 'Bella – Chuyên nghiệp, tươi sáng, ấm áp', source_type: 'system', language_code: 'en', gender: 'female', is_active: true },
@@ -98,6 +98,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [studioBusy, setStudioBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [featureCaps, setFeatureCaps] = useState<AudioCapabilitiesOut | null>(null);
 
   const accent = provider === 'minimax' ? 'purple' : 'teal';
 
@@ -118,6 +119,7 @@ export default function App() {
       setSelectedProjectId((current) => current || data[0]?.id || null);
     }).catch(() => undefined);
     api.balance().then((data) => setCredits(data.balance_credits)).catch(() => undefined);
+    api.audioCapabilities().then(setFeatureCaps).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -275,6 +277,12 @@ export default function App() {
       setToast('Vui lòng nhập nội dung trước khi tạo giọng nói.');
       return;
     }
+
+    const ttsCapability = featureCaps?.features.find((item) => item.feature === 'text_to_speech');
+    if (ttsCapability && ttsCapability.status === 'disabled') {
+      setToast(ttsCapability.reason || 'Tính năng đang bị vô hiệu hóa từ backend readiness.');
+      return;
+    }
     setBusy(true);
     try {
       let job: JobStatusOut;
@@ -319,6 +327,7 @@ export default function App() {
         {screen === 'tts' && <TextWorkspace busy={busy} credits={credits} onSubmit={(text) => submitText(text, 'tts')} />}
         {screen === 'conversation' && <ConversationWorkspace busy={busy} credits={credits} onSubmit={(text) => submitText(text, 'conversation')} />}
         {screen === 'voiceChanger' && <VoiceChangerWorkspace />}
+        {screen === 'p2Processor' && <P2ProcessorWorkspace />}
         {screen === 'library' && <VoiceLibraryWorkspace voices={voices} selectedVoiceId={settings.voiceId} onSelect={(voice) => updateSettings({ voiceId: voice.id })} onOpenClone={() => setCloneOpen(true)} />}
         {screen === 'studio' && <StudioWorkspace projects={projects} selectedProjectId={selectedProjectId} onCreate={handleCreateProject} onSelectProject={setSelectedProjectId} onSaveScript={handleSaveProjectScript} onRenderProject={handleRenderProject} busy={studioBusy} />}
         {screen === 'history' && <HistoryWorkspace jobs={jobs} />}
@@ -346,12 +355,26 @@ function isUuid(value?: string) {
   return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error('Không thể đọc file âm thanh.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 function Sidebar({ screen, setScreen }: { screen: Screen; setScreen: (screen: Screen) => void }) {
   const items = [
     { group: 'Khu thử nghiệm', rows: [
       { id: 'tts' as Screen, label: 'Văn bản thành giọng nói', icon: Mic },
       { id: 'conversation' as Screen, label: 'Hội thoại', icon: MessageSquare },
-      { id: 'voiceChanger' as Screen, label: 'Thay đổi giọng nói', icon: Repeat2, badge: 'MỚI' }
+      { id: 'voiceChanger' as Screen, label: 'Thay đổi giọng nói', icon: Repeat2, badge: 'MỚI' },
+      { id: 'p2Processor' as Screen, label: 'P2 Processor', icon: Sparkles, badge: 'P2' }
     ] },
     { group: 'Tài nguyên', rows: [
       { id: 'library' as Screen, label: 'Thư viện giọng nói', icon: Library },
@@ -401,6 +424,7 @@ function TopBar({ screen }: { screen: Screen }) {
     tts: 'Văn bản thành giọng nói',
     conversation: 'Hội thoại',
     voiceChanger: 'Thay đổi giọng nói',
+    p2Processor: 'P2 Processor',
     studio: 'Xưởng âm thanh',
     library: 'Thư viện giọng nói',
     history: 'Lịch sử',
@@ -495,7 +519,278 @@ function VoiceChangerWorkspace() {
           </button>
         </div>
       )}
-      {!file && <p className="feature-note">Tải lên file âm thanh để bắt đầu biến đổi cao độ hoặc tone giọng.</p>}
+      {!file && <p className="feature-note">Màn này dành cho đổi pitch nhanh. Noise reducer, enhancer và podcast mixer đã tách riêng trong P2 Processor.</p>}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+    </section>
+  );
+}
+
+type ContentType = 'narration' | 'podcast' | 'livestream';
+type QualityPreset = 'cleanSpeech' | 'studioPodcast' | 'liveStreamFast';
+
+const AUTO_P2_PRESETS: Record<ContentType, {
+  noiseStrength: number;
+  noiseProfileMs: number;
+  noiseVoiceProfile: 'balanced' | 'narration' | 'podcast' | 'livestream';
+  enhancePreset: 'clean' | 'broadcast' | 'podcast';
+  enhanceVoiceProfile: 'balanced' | 'warm' | 'bright' | 'broadcast';
+}> = {
+  narration: {
+    noiseStrength: 0.72,
+    noiseProfileMs: 320,
+    noiseVoiceProfile: 'narration',
+    enhancePreset: 'clean',
+    enhanceVoiceProfile: 'warm',
+  },
+  podcast: {
+    noiseStrength: 0.64,
+    noiseProfileMs: 260,
+    noiseVoiceProfile: 'podcast',
+    enhancePreset: 'podcast',
+    enhanceVoiceProfile: 'balanced',
+  },
+  livestream: {
+    noiseStrength: 0.58,
+    noiseProfileMs: 180,
+    noiseVoiceProfile: 'livestream',
+    enhancePreset: 'broadcast',
+    enhanceVoiceProfile: 'broadcast',
+  },
+};
+
+const QUALITY_PRESET_CONFIG: Record<QualityPreset, {
+  label: string;
+  hint: string;
+  contentType: ContentType;
+}> = {
+  cleanSpeech: {
+    label: 'Clean Speech',
+    hint: 'Rõ lời, cân bằng, giảm nền ổn định',
+    contentType: 'narration',
+  },
+  studioPodcast: {
+    label: 'Studio Podcast',
+    hint: 'Ấm và dày, ưu tiên chất giọng dài hơi',
+    contentType: 'podcast',
+  },
+  liveStreamFast: {
+    label: 'Live Stream Fast',
+    hint: 'Phản hồi nhanh, ưu tiên realtime cảm nhận',
+    contentType: 'livestream',
+  },
+};
+
+function P2ProcessorWorkspace() {
+  const [contentType, setContentType] = useState<ContentType>('narration');
+  const [qualityPreset, setQualityPreset] = useState<QualityPreset>('cleanSpeech');
+  const [file, setFile] = useState<File | null>(null);
+  const [podcastFiles, setPodcastFiles] = useState<File[]>([]);
+  const [podcastTitle, setPodcastTitle] = useState('Podcast Episode');
+  const [noiseStrength, setNoiseStrength] = useState(0.72);
+  const [noiseProfileMs, setNoiseProfileMs] = useState(320);
+  const [noiseVoiceProfile, setNoiseVoiceProfile] = useState<'balanced' | 'narration' | 'podcast' | 'livestream'>('narration');
+  const [enhancePreset, setEnhancePreset] = useState<'clean' | 'broadcast' | 'podcast'>('clean');
+  const [enhanceVoiceProfile, setEnhanceVoiceProfile] = useState<'balanced' | 'warm' | 'bright' | 'broadcast'>('warm');
+  const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  function applyAutoPreset(kind: ContentType) {
+    const preset = AUTO_P2_PRESETS[kind];
+    setNoiseStrength(preset.noiseStrength);
+    setNoiseProfileMs(preset.noiseProfileMs);
+    setNoiseVoiceProfile(preset.noiseVoiceProfile);
+    setEnhancePreset(preset.enhancePreset);
+    setEnhanceVoiceProfile(preset.enhanceVoiceProfile);
+  }
+
+  function applyQualityPreset(kind: QualityPreset) {
+    const preset = QUALITY_PRESET_CONFIG[kind];
+    setQualityPreset(kind);
+    setContentType(preset.contentType);
+    applyAutoPreset(preset.contentType);
+  }
+
+  useEffect(() => {
+    applyAutoPreset(contentType);
+  }, [contentType]);
+
+  async function handleNoiseReduce() {
+    if (!file) {
+      setToast('Hãy chọn file âm thanh trước khi khử ồn.');
+      return;
+    }
+    setProcessing(true);
+    try {
+      const audio_b64 = await fileToBase64(file);
+      const result = await api.noiseReduce({
+        audio_b64,
+        strength: noiseStrength,
+        noise_profile_ms: noiseProfileMs,
+        voice_profile: noiseVoiceProfile,
+      });
+      setOutputUrl(result.public_url || null);
+      setToast(`Khử ồn thành công. File mới: ${result.output_key}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Không thể khử ồn audio.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  async function handleEnhanceVoice() {
+    if (!file) {
+      setToast('Hãy chọn file âm thanh trước khi tăng cường giọng nói.');
+      return;
+    }
+    setProcessing(true);
+    try {
+      const audio_b64 = await fileToBase64(file);
+      const result = await api.voiceEnhance({
+        audio_b64,
+        preset: enhancePreset,
+        voice_profile: enhanceVoiceProfile,
+      });
+      setOutputUrl(result.public_url || null);
+      setToast(`Tăng cường giọng thành công. File mới: ${result.output_key}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Không thể tăng cường giọng nói.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  async function handlePodcastMix() {
+    if (podcastFiles.length === 0) {
+      setToast('Chọn ít nhất một file WAV để mix podcast.');
+      return;
+    }
+    setProcessing(true);
+    try {
+      const segments = await Promise.all(podcastFiles.map(async (item, idx) => ({
+        audio_b64: await fileToBase64(item),
+        speaker: `Speaker ${idx + 1}`,
+        pause_after_ms: idx < podcastFiles.length - 1 ? 300 : 0,
+      })));
+      const result = await api.podcastMix({
+        title: podcastTitle,
+        segments,
+        target_sample_rate: 44100,
+        crossfade_ms: 30,
+      });
+      setOutputUrl(result.public_url || null);
+      setToast(`Mix podcast thành công. File mới: ${result.output_key}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Không thể mix podcast.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  return (
+    <section className="workspace voice-change p2-workspace">
+      <div className="preset-auto-row">
+        <label>
+          Loại nội dung
+          <select value={contentType} onChange={(e) => setContentType(e.target.value as ContentType)}>
+            <option value="narration">Narration</option>
+            <option value="podcast">Podcast</option>
+            <option value="livestream">Livestream</option>
+          </select>
+        </label>
+        <button className="round-action" onClick={() => applyAutoPreset(contentType)} type="button">Áp preset tự động</button>
+      </div>
+
+      <div className="quality-preset-row">
+        {Object.entries(QUALITY_PRESET_CONFIG).map(([key, item]) => (
+          <button
+            key={key}
+            type="button"
+            className={cx('quality-preset-btn', qualityPreset === key && 'active')}
+            onClick={() => applyQualityPreset(key as QualityPreset)}
+          >
+            <strong>{item.label}</strong>
+            <span>{item.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      <label className="dropzone">
+        <Upload size={34} />
+        <strong>Thả file âm thanh vào đây hoặc bấm để chọn</strong>
+        <span>WAV khuyến nghị cho chất lượng tốt nhất</span>
+        <input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+      </label>
+
+      {file && (
+        <div className="voice-change-controls">
+          <p>File đầu vào: <strong>{file.name}</strong></p>
+          <div className="p2-card-grid">
+            <article className="p2-card">
+              <h3>Noise Reducer</h3>
+              <label>
+                Strength: {noiseStrength.toFixed(2)}
+                <input type="range" min={0} max={1} step={0.01} value={noiseStrength} onChange={(e) => setNoiseStrength(Number(e.target.value))} />
+              </label>
+              <label>
+                Noise profile (ms): {noiseProfileMs}
+                <input type="range" min={50} max={1000} step={10} value={noiseProfileMs} onChange={(e) => setNoiseProfileMs(Number(e.target.value))} />
+              </label>
+              <label>
+                Voice profile
+                <select value={noiseVoiceProfile} onChange={(e) => setNoiseVoiceProfile(e.target.value as typeof noiseVoiceProfile)}>
+                  <option value="balanced">Balanced</option>
+                  <option value="narration">Narration</option>
+                  <option value="podcast">Podcast</option>
+                  <option value="livestream">Live Stream</option>
+                </select>
+              </label>
+              <button className="round-action" disabled={processing} onClick={handleNoiseReduce} type="button">Khử ồn</button>
+            </article>
+
+            <article className="p2-card">
+              <h3>Voice Enhancer</h3>
+              <label>
+                Preset
+                <select value={enhancePreset} onChange={(e) => setEnhancePreset(e.target.value as typeof enhancePreset)}>
+                  <option value="clean">Clean</option>
+                  <option value="broadcast">Broadcast</option>
+                  <option value="podcast">Podcast</option>
+                </select>
+              </label>
+              <label>
+                Voice profile
+                <select value={enhanceVoiceProfile} onChange={(e) => setEnhanceVoiceProfile(e.target.value as typeof enhanceVoiceProfile)}>
+                  <option value="balanced">Balanced</option>
+                  <option value="warm">Warm</option>
+                  <option value="bright">Bright</option>
+                  <option value="broadcast">Broadcast</option>
+                </select>
+              </label>
+              <button className="round-action" disabled={processing} onClick={handleEnhanceVoice} type="button">Tăng cường giọng</button>
+            </article>
+          </div>
+        </div>
+      )}
+
+      <div className="podcast-mix-card">
+        <h3>Podcast Mixer (P2)</h3>
+        <input value={podcastTitle} onChange={(e) => setPodcastTitle(e.target.value)} placeholder="Tiêu đề podcast" />
+        <label className="upload-zone interactive-upload">
+          <input
+            type="file"
+            accept="audio/wav"
+            multiple
+            onChange={(e) => setPodcastFiles(Array.from(e.target.files || []))}
+          />
+          {podcastFiles.length > 0 ? `${podcastFiles.length} file đã chọn` : 'Chọn nhiều file WAV để mix podcast'}
+        </label>
+        <button className="primary-pill" disabled={processing || podcastFiles.length === 0} onClick={handlePodcastMix} type="button">
+          {processing ? <Loader2 className="spin" size={18} /> : <Sparkles size={18} />} MIX PODCAST
+        </button>
+      </div>
+
+      {outputUrl && <p className="feature-note">Output: <a href={outputUrl} target="_blank" rel="noreferrer">{outputUrl}</a></p>}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </section>
   );
@@ -875,12 +1170,14 @@ function AiEffectsWorkspace() {
 
 function GovernanceWorkspace() {
   const [providerHealth, setProviderHealth] = useState<Record<string, { status: string; detail: string }> | null>(null);
+  const [capabilities, setCapabilities] = useState<AudioCapabilitiesOut | null>(null);
   const [baselines, setBaselines] = useState<Array<{ baseline_id: string; baseline_type: string; lifecycle_state: string; created_at: string }>>([]);
   const [decisions, setDecisions] = useState<Array<{ decision_id: string; title: string; outcome: string; created_at: string }>>([]);
   const [remediations, setRemediations] = useState<Array<{ remediation_id: string; title: string; status: string; created_at: string }>>([]);
 
   useEffect(() => {
     api.providerHealth().then((x) => setProviderHealth(x.providers)).catch(() => setProviderHealth(null));
+    api.audioCapabilities().then(setCapabilities).catch(() => setCapabilities(null));
     api.governanceBaselines().then(setBaselines).catch(() => setBaselines([]));
     api.governanceDecisions().then(setDecisions).catch(() => setDecisions([]));
     api.governanceRemediations().then(setRemediations).catch(() => setRemediations([]));
@@ -899,6 +1196,16 @@ function GovernanceWorkspace() {
         <article className="history-card"><span>Baselines</span><strong>{baselines.length}</strong><small>{baselines[0]?.baseline_type || 'N/A'}</small></article>
         <article className="history-card"><span>Decisions</span><strong>{decisions.length}</strong><small>{decisions[0]?.outcome || 'N/A'}</small></article>
         <article className="history-card"><span>Remediations</span><strong>{remediations.length}</strong><small>{remediations[0]?.status || 'N/A'}</small></article>
+      </div>
+
+      <div className="history-list" style={{ marginTop: '1rem' }}>
+        {(capabilities?.features || []).map((item) => (
+          <article className="history-card" key={item.feature}>
+            <span>{item.feature}</span>
+            <strong>{item.status.toUpperCase()}</strong>
+            <small>{item.providers.length ? `provider: ${item.providers.join(', ')}` : (item.reason || 'Chua san sang')}</small>
+          </article>
+        ))}
       </div>
     </section>
   );

@@ -1,0 +1,9 @@
+[
+  "docs/00_audit/REPO_AUDIT_REPORT.md",
+  "docs/01_p0_truth/P0_PATCH_GUIDE.md",
+  "docs/02_p1_providers/P1_PROVIDER_PATCH_GUIDE.md",
+  "docs/03_p2_engines/P2_AUDIO_ENGINE_PATCH_GUIDE.md",
+  "docs/04_frontend/FRONTEND_PATCH_GUIDE.md",
+  "docs/05_ci/VERIFY_AND_CI_GUIDE.md",
+  "docs/06_ops/PRODUCTION_RUNBOOK.md"
+]

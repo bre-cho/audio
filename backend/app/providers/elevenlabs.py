@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 
 from app.core.config import settings
 from app.providers.base import BaseTTSProvider
@@ -69,4 +70,54 @@ class ElevenLabsProvider(BaseTTSProvider):
             raise RuntimeError(f"ElevenLabs TTS failed: {exc}") from exc
 
     def clone_voice(self, payload: dict) -> dict:
-        return {'status': 'queued', 'provider': self.code}
+        api_key = self._api_key()
+        if not api_key:
+            raise RuntimeError("ElevenLabs API key is missing for clone flow")
+
+        name = str(payload.get("name") or "").strip()
+        if not name:
+            raise ValueError("clone voice requires non-empty name")
+
+        sample_files = payload.get("sample_files") or []
+        if not sample_files:
+            raise ValueError("clone voice requires at least one sample file")
+
+        multipart_files = []
+        for index, sample in enumerate(sample_files):
+            filename = sample.get("filename") or f"sample-{index + 1}.wav"
+            content = sample.get("content") or b""
+            content_type = sample.get("content_type") or mimetypes.guess_type(filename)[0] or "audio/wav"
+            if not isinstance(content, (bytes, bytearray)) or len(content) == 0:
+                raise ValueError("clone sample content must be non-empty bytes")
+            multipart_files.append(("files", (filename, bytes(content), content_type)))
+
+        remove_background_noise = bool(payload.get("remove_background_noise", True))
+        form_data = {
+            "name": name,
+            "remove_background_noise": "true" if remove_background_noise else "false",
+        }
+
+        try:
+            import httpx
+
+            resp = httpx.post(
+                f"{_ELEVENLABS_BASE_URL}/voices/add",
+                headers={"xi-api-key": api_key},
+                data=form_data,
+                files=multipart_files,
+                timeout=60,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            voice_id = body.get("voice_id")
+            if not voice_id:
+                raise RuntimeError(f"ElevenLabs clone response missing voice_id: {body}")
+            return {
+                "status": "ok",
+                "provider": self.code,
+                "voice_id": str(voice_id),
+                "raw": body,
+            }
+        except Exception as exc:
+            logger.error("ElevenLabs clone_voice failed: %s", exc)
+            raise RuntimeError(f"ElevenLabs clone failed: {exc}") from exc

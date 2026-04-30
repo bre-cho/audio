@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.audio_factory.task_mapper import build_audio_narration_task, build_audio_preview_task
 from app.models.audio_job import AudioJob
+from app.providers.capability_registry import CAPABILITIES, ENGINE_CAPABILITIES
 from app.repositories.job_repo import JobRepository
 from app.schemas.job import JobStatusOut
+from app.schemas.provider import AudioCapabilitiesOut, FeatureCapabilityOut
 from app.workers.audio_tasks import enqueue_batch_job, enqueue_tts_job
 
 router = APIRouter()
@@ -28,6 +30,57 @@ class AudioNarrationRequest(BaseModel):
     voice_profile_id: str | None = None
     project_id: str | None = None
     provider: str | None = None
+
+
+@router.get('/capabilities', response_model=AudioCapabilitiesOut)
+def audio_capabilities() -> AudioCapabilitiesOut:
+    features = {
+        'text_to_speech': ('tts', None),
+        'voice_clone': ('voice_clone', None),
+        'voice_changer': ('voice_conversion', 'voice_changer'),
+        'voice_design': ('voice_design', 'voice_design'),
+        'sound_effects': ('sound_effect', 'sound_effects'),
+        'noise_reducer': ('noise_reduction', 'noise_reduction'),
+        'voice_enhancer': ('voice_enhancement', 'voice_enhancement'),
+        'podcast_generator': ('podcast_mix', 'podcast_mix'),
+    }
+    payload: list[FeatureCapabilityOut] = []
+    for feature_name, (provider_capability, engine_key) in features.items():
+        provider_hits = [
+            provider_code
+            for provider_code, caps in CAPABILITIES.items()
+            if getattr(caps, provider_capability, False) and caps.production_ready
+        ]
+
+        engine_caps = ENGINE_CAPABILITIES.get(engine_key) if engine_key else None
+        engine_status = (engine_caps or {}).get('status')
+        provider_required = bool((engine_caps or {}).get('provider_required', True)) if engine_caps else True
+
+        if provider_hits:
+            status = 'ready'
+            reason = None
+        elif engine_status == 'active' and not provider_required:
+            status = 'ready'
+            reason = 'Engine-backed feature available without external provider'
+        elif engine_status == 'planned':
+            status = 'partial'
+            reason = 'Engine roadmap planned but no production-ready provider yet'
+        elif engine_status == 'disabled':
+            status = 'disabled'
+            reason = 'Feature disabled in engine capability registry'
+        else:
+            status = 'disabled'
+            reason = 'No production-ready provider capability'
+
+        payload.append(
+            FeatureCapabilityOut(
+                feature=feature_name,
+                status=status,
+                reason=reason,
+                providers=provider_hits,
+            )
+        )
+    return AudioCapabilitiesOut(features=payload)
 
 
 @router.get('/health')

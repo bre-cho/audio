@@ -8,7 +8,9 @@ class MinimaxProvider(BaseTTSProvider):
         return []
 
     def generate_speech(self, payload: dict) -> dict:
-        return {'status': 'queued', 'provider': self.code}
+        del payload
+        raise NotImplementedError('Minimax generate_speech is not implemented yet')
 
     def clone_voice(self, payload: dict) -> dict:
-        return {'status': 'queued', 'provider': self.code}
+        del payload
+        raise NotImplementedError('Minimax clone_voice is not implemented yet')

@@ -8,13 +8,14 @@ from app.services.affiliate_service import AffiliateService
 
 
 def _auth_header_for(user_id: uuid.UUID, monkeypatch) -> dict[str, str]:
+    jwt_secret = 'this-is-a-long-enough-test-secret-for-hs256-affiliate'
     monkeypatch.setattr(settings, 'auth_enabled', True)
-    monkeypatch.setattr(settings, 'jwt_secret_key', 'test-secret')
+    monkeypatch.setattr(settings, 'jwt_secret_key', jwt_secret)
     monkeypatch.setattr(settings, 'jwt_algorithm', 'HS256')
     monkeypatch.setattr(settings, 'jwt_audience', None)
     monkeypatch.setattr(settings, 'jwt_issuer', None)
 
-    token = jwt.encode({'sub': str(user_id)}, 'test-secret', algorithm='HS256')
+    token = jwt.encode({'sub': str(user_id)}, jwt_secret, algorithm='HS256')
     return {'Authorization': f'Bearer {token}'}
 
 

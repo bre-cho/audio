@@ -21,6 +21,7 @@ class ArtifactPersistenceService:
 
         rows: list[AudioOutput] = []
         for contract in contracts:
+            persisted_status = "persisted" if contract.promotion_status in {"contract_verified", "persisted"} else contract.promotion_status
             row = AudioOutput(
                 job_id=job_uuid,
                 source_job_id=job_uuid,
@@ -38,9 +39,23 @@ class ArtifactPersistenceService:
                 model_version=contract.model_version,
                 template_version=contract.template_version,
                 runtime_version=contract.runtime_version,
-                promotion_status="persisted",
+                generation_mode=contract.generation_mode,
+                provider_verified=contract.provider_verified,
+                audio_contains_signal=contract.audio_contains_signal,
+                signal_rms=contract.signal_rms,
+                signal_peak=contract.signal_peak,
+                quality_report=contract.quality_report,
+                promotion_status=persisted_status,
                 waveform_json=contract.waveform_json or contract.model_dump(),
-                metadata_json=contract.metadata,
+                metadata_json={
+                    **(contract.metadata or {}),
+                    "generation_mode": contract.generation_mode,
+                    "provider_verified": contract.provider_verified,
+                    "audio_contains_signal": contract.audio_contains_signal,
+                    "signal_rms": contract.signal_rms,
+                    "signal_peak": contract.signal_peak,
+                    "quality_report": contract.quality_report,
+                },
             )
             db.add(row)
             rows.append(row)

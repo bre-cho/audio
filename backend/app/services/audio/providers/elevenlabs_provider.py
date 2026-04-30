@@ -63,10 +63,18 @@ class ElevenLabsAudioProvider(BaseAudioProviderAdapter):
         remove_background_noise: bool = True,
         options: dict | None = None,
     ) -> AudioCloneResult:
+        sample_files = []
+        if options:
+            sample_files = options.get("sample_files") or []
         result = self._provider.clone_voice(
-            {"name": name, "files": files, "remove_background_noise": remove_background_noise}
+            {
+                "name": name,
+                "files": files,
+                "sample_files": sample_files,
+                "remove_background_noise": remove_background_noise,
+            }
         )
-        if result.get("status") not in ("failed", "error"):
+        if result.get("status") not in ("failed", "error") and result.get("voice_id"):
             return AudioCloneResult(
                 provider=self.provider_name,
                 provider_voice_id=result.get("voice_id"),

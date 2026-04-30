@@ -1,4 +1,15 @@
-import type { BillingBalanceOut, JobStatusOut, ProjectOut, ProviderOut, VoiceOut } from './types';
+import type {
+  AudioCapabilitiesOut,
+  AudioProcessResponse,
+  BillingBalanceOut,
+  JobStatusOut,
+  NoiseReduceRequest,
+  PodcastMixRequest,
+  ProjectOut,
+  ProviderOut,
+  VoiceEnhanceRequest,
+  VoiceOut,
+} from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
@@ -95,6 +106,19 @@ export const api = {
     body: JSON.stringify({ amount_cents: Math.round(amountUsd * 100), payout_method: method, payout_destination: destination })
   }),
   providerHealth: () => request<{ providers: Record<string, { status: string; detail: string }>; storage_backend: string }>('/providers/health'),
+  audioCapabilities: () => request<AudioCapabilitiesOut>('/audio/capabilities'),
+  noiseReduce: (payload: NoiseReduceRequest) => request<AudioProcessResponse>('/noise-reducer/process', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  voiceEnhance: (payload: VoiceEnhanceRequest) => request<AudioProcessResponse>('/voice-enhancer/process', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  podcastMix: (payload: PodcastMixRequest) => request<AudioProcessResponse>('/podcast/mix', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
   governanceBaselines: () => request<Array<{ baseline_id: string; baseline_type: string; lifecycle_state: string; created_at: string }>>('/baselines'),
   governanceDecisions: () => request<Array<{ decision_id: string; title: string; outcome: string; created_at: string }>>('/decisions'),
   governanceRemediations: () => request<Array<{ remediation_id: string; title: string; status: string; created_at: string }>>('/remediation'),

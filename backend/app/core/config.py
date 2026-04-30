@@ -5,6 +5,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_env: str = 'dev'
+    provider_strict_mode: bool = False
+    allow_placeholder_audio: bool = True
+    allow_provider_fallback: bool = False
     app_name: str = 'audio-ai-system'
     database_url: str = 'postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai'
     redis_url: str = 'redis://localhost:6379/0'

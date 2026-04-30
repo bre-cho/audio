@@ -1,7 +1,7 @@
 OK: skip stack up
 [wait_for_stack] waiting up to 300s for http://localhost:8000 ...
 [wait_for_stack] healthy: http://localhost:8000/healthz
-->  celery@4efc47cb5e25: OK
+->  celery@94ee8b193a3d: OK
         pong
 
 1 node online.
@@ -20,7 +20,7 @@ libswscale      8.  3.100 /  8.  3.100
 libswresample   5.  3.100 /  5.  3.100
 libpostproc    58.  3.100 / 58.  3.100
 OK: project created
-[{"id":"00000000-0000-0000-0000-000000000123","name":"CI Voice","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-25T19:25:11.661688Z"},{"id":"e2ef75a0-c9f5-4602-8119-f00816f25564","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:02:38.152944Z"},{"id":"5d5656f5-040a-4c56-a5b8-9d1538764a44","name":"Voice EN Updated","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:02:38.152937Z"},{"id":"cb33c581-9027-4d32-9c3d-f1f5fad467a1","name":"Voice EN","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:03:24.909025Z"},{"id":"964d9ca6-cb7e-4109-aec7-e8083cfa9280","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:03:24.909039Z"},{"id":"fe2773fb-f9d8-48b5-b360-9dfcb354a032","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:03:47.793455Z"},{"id":"978326c0-c12a-4058-8a82-4d5bd5367da6","name":"Voice EN Updated","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:03:47.793441Z"},{"id":"6aa6dc0a-5907-4e83-b96b-68424aea9df0","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:06:00.718703Z"},{"id":"d9ba7a60-dac4-4452-aa05-b9d28fdf1522","name":"Voice EN Updated","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:06:00.718689Z"},{"id":"b21909e2-bd9f-404e-a9c4-f4f735e8d811","name":"Voice For Clone Preview","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:07:52.426482Z"},{"id":"ac1eda8f-ccc4-4083-ab43-a103cc289f63","name":"Voice For Clone Preview","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:08:15.916882Z"},{"id":"e18150d6-972a-4c71-8f74-a547ee22ebec","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:09:07.234160Z"},{"id":"44d8e601-2e30-46ab-8290-a0d309b212c5","name":"Voice EN Updated","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:09:07.234146Z"},{"id":"124b597e-5528-4fe8-af2d-1106962dfb57","name":"Voice For Clone Preview","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:09:07.608271Z"},{"id":"ffc7eabe-942a-415e-9e74-2f6b6b03b82e","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:10:53.864258Z"},{"id":"455f8126-c839-496b-a27a-0300492e16e4","name":"Voice EN Updated","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:10:53.864244Z"},{"id":"8d27fbac-6d73-4be6-a490-8fa263d34e98","name":"Voice For Clone Preview","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:10:54.206547Z"},{"id":"4b91afd7-58b8-453e-bd0b-ca35848f37e7","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:22:08.021693Z"},{"id":"cb515452-2b9a-4e8f-b673-81e095490027","name":"Voice EN Updated","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:22:08.021679Z"},{"id":"0d758b42-b3b7-48f7-a902-309e35024c33","name":"Voice For Clone Preview","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:22:08.319746Z"},{"id":"23aceabc-7630-4920-ba50-18a6124de3bb","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:22:25.706409Z"},{"id":"cec04126-838d-49c7-becb-5b61649204bc","name":"Voice EN Updated","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:22:25.706401Z"},{"id":"6f93fdac-176a-46bc-a7b0-5751d91adc7a","name":"Voice For Clone Preview","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:22:25.884281Z"},{"id":"850a1ddc-b8e4-4bde-ac03-2077e82be334","name":"Voice VI","source_type":"cloned","language_code":"vi","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:58:17.615722Z"},{"id":"24113c07-c8a6-4fcf-b83a-e92240aa8fab","name":"Voice EN Updated","source_type":"system","language_code":"en","gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:58:17.615714Z"},{"id":"09e9d213-00ac-43cc-a0e4-125e38b755ea","name":"Voice For Clone Preview","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-26T03:58:17.860200Z"}]OK: voices endpoint reachable
+[{"id":"00000000-0000-0000-0000-000000000123","name":"CI Voice","source_type":"system","language_code":null,"gender":null,"preview_url":null,"is_active":true,"created_at":"2026-04-30T12:52:33.216562Z"},{"id":"58fb3697-5ee6-47a3-8a08-4ea51dbd8bd3","name":"Clone Real","source_type":"cloned","language_code":"en","gender":"female","preview_url":null,"is_active":true,"created_at":"2026-04-30T12:52:33.835318Z"}]OK: voices endpoint reachable
 OK: preview job created
 preview poll status=succeeded
 OK: preview job succeeded
@@ -50,7 +50,7 @@ OK: artifact_0 artifact contract_pass=true
 OK: artifact_0 artifact lineage_pass=true
 OK: artifact_0 artifact write_integrity_pass=true
 OK: artifact_0 artifact promotion status accepted: contract_verified
-OK: artifact_0 artifact reachable: /artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.preview.wav
+OK: artifact_0 artifact reachable: /artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.preview.wav
 OK: artifact_0 content-type audio: audio/x-wav
 OK: artifact_0 content-length > 0
 OK: artifact_0 artifact downloaded size matches contract
@@ -80,7 +80,7 @@ OK: artifact_1 artifact contract_pass=true
 OK: artifact_1 artifact lineage_pass=true
 OK: artifact_1 artifact write_integrity_pass=true
 OK: artifact_1 artifact promotion status accepted: contract_verified
-OK: artifact_1 artifact reachable: /artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.wav
+OK: artifact_1 artifact reachable: /artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.wav
 OK: artifact_1 content-type audio: audio/x-wav
 OK: artifact_1 content-length > 0
 OK: artifact_1 artifact downloaded size matches contract
@@ -95,27 +95,73 @@ OK: promotion gate key exists: promotion_status
 OK: promotion gate key exists: checked_at
 api-1  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
 api-1  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
+api-1  | INFO  [alembic.runtime.migration] Running upgrade  -> 0001, audio factory schema
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 0001 -> 180bf7c48e34, add_new_column
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 180bf7c48e34 -> f4b28e2666cf, add_audio_job_idempotency_key
+api-1  | INFO  [alembic.runtime.migration] Running upgrade f4b28e2666cf -> 56c62fb3619e, add_idempotency_unique_constraint
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 56c62fb3619e -> 8c6b4bb9f8c1, add governance tables
+api-1  | INFO  [alembic.runtime.migration] Running upgrade f4b28e2666cf, 8c6b4bb9f8c1 -> 9a1k2l3m, add_affiliate_tables
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 9a1k2l3m -> 2b3k4l5m, add_ai_effects_tables
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 2b3k4l5m -> c3d4e5f6a7b8, add p0 truth columns
+api-1  | INFO  [alembic.runtime.migration] Running upgrade c3d4e5f6a7b8 -> d4e5f6a7b8c9, add provider capabilities table
 api-1  | INFO:     Started server process [1]
 api-1  | INFO:     Waiting for application startup.
 api-1  | INFO:     Application startup complete.
 api-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-api-1  | INFO:     172.19.0.1:46920 - "GET /health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:46936 - "GET /api/v1/health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:46952 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:49178 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:44212 - "GET /health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:44224 - "GET /api/v1/health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:44236 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:34718 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:60648 - "POST /api/v1/projects HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:60662 - "GET /api/v1/voices HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:60670 - "POST /api/v1/audio/preview HTTP/1.1" 201 Created
-api-1  | INFO:     127.0.0.1:55420 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:42180 - "GET /api/v1/jobs/82649470-0d7f-43b1-94b0-277d6edfd963 HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:42192 - "HEAD /artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.preview.wav HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:42202 - "GET /artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.preview.wav HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:42212 - "HEAD /artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.wav HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:42214 - "GET /artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.wav HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:40648 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:45762 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:36404 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:42462 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:37980 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:36116 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:48518 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:34832 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:36580 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:34462 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:36550 - "GET /health HTTP/1.1" 404 Not Found
+api-1  | INFO:     172.19.0.1:36566 - "GET /api/v1/health HTTP/1.1" 404 Not Found
+api-1  | INFO:     172.19.0.1:36570 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:48288 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:53566 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:60344 - "HEAD /artifacts/audio/static-probe.txt HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:49582 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:33768 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:58840 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:57346 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:52994 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:51958 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:39640 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:53128 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:33220 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:35726 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:33330 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:36478 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:60374 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:51010 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:38000 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:39506 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:50198 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:44356 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:60574 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:43196 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:40292 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:35036 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:59690 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:40610 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:58250 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:44650 - "GET /health HTTP/1.1" 404 Not Found
+api-1  | INFO:     172.19.0.1:44658 - "GET /api/v1/health HTTP/1.1" 404 Not Found
+api-1  | INFO:     172.19.0.1:44668 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:45922 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:33762 - "POST /api/v1/projects HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:33770 - "GET /api/v1/voices HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:33772 - "POST /api/v1/audio/preview HTTP/1.1" 201 Created
+api-1  | INFO:     172.19.0.1:33786 - "GET /api/v1/jobs/e1a8d5f4-936b-4a4b-af36-15abddeff9d4 HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:59142 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:35274 - "HEAD /artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.preview.wav HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:35288 - "GET /artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.preview.wav HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:35298 - "HEAD /artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.wav HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:35312 - "GET /artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.wav HTTP/1.1" 200 OK
 worker-1  | /usr/local/lib/python3.12/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
 worker-1  | absolutely not recommended!
 worker-1  | 
@@ -125,12 +171,12 @@ worker-1  | User information: uid=0 euid=0 gid=0 egid=0
 worker-1  | 
 worker-1  |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
 worker-1  |  
-worker-1  |  -------------- celery@4efc47cb5e25 v5.6.3 (recovery)
+worker-1  |  -------------- celery@94ee8b193a3d v5.6.3 (recovery)
 worker-1  | --- ***** ----- 
-worker-1  | -- ******* ---- Linux-6.8.0-1044-azure-x86_64-with-glibc2.41 2026-04-26 14:50:37
+worker-1  | -- ******* ---- Linux-6.8.0-1044-azure-x86_64-with-glibc2.41 2026-04-30 12:50:29
 worker-1  | - *** --- * --- 
 worker-1  | - ** ---------- [config]
-worker-1  | - ** ---------- .> app:         audio_ai_workers:0x76a9bc9aaf30
+worker-1  | - ** ---------- .> app:         audio_ai_workers:0x7f193e662ab0
 worker-1  | - ** ---------- .> transport:   redis://redis:6379/0
 worker-1  | - ** ---------- .> results:     redis://redis:6379/0
 worker-1  | - *** --- * --- .> concurrency: 2 (prefork)
@@ -141,16 +187,18 @@ worker-1  |                 .> audio            exchange=audio(direct) key=audio
 worker-1  |                 
 worker-1  | 
 worker-1  | [tasks]
+worker-1  |   . audio.process_audio_effect_job
 worker-1  |   . audio.process_batch_job
 worker-1  |   . audio.process_clone_job
 worker-1  |   . audio.process_clone_preview_job
 worker-1  |   . audio.process_conversation_job
 worker-1  |   . audio.process_tts_job
+worker-1  |   . audio.process_voice_shift_job
 worker-1  | 
-worker-1  | [2026-04-26 14:50:37,707: INFO/MainProcess] Connected to redis://redis:6379/0
-worker-1  | [2026-04-26 14:50:37,711: INFO/MainProcess] mingle: searching for neighbors
-worker-1  | [2026-04-26 14:50:38,740: INFO/MainProcess] mingle: all alone
-worker-1  | [2026-04-26 14:50:38,757: INFO/MainProcess] celery@4efc47cb5e25 ready.
-worker-1  | [2026-04-26 14:51:02,528: INFO/MainProcess] Task audio.process_tts_job[c057df77-6138-450e-a80f-83a5dceb3926] received
-worker-1  | [2026-04-26 14:51:02,684: INFO/ForkPoolWorker-2] Task audio.process_tts_job[c057df77-6138-450e-a80f-83a5dceb3926] succeeded in 0.15432470700034173s: {'job_id': '82649470-0d7f-43b1-94b0-277d6edfd963', 'status': 'succeeded', 'provider': 'internal_genvoice', 'artifacts': [{'url': '/artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.preview.wav', 'path': '/artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.preview.wav', 'job_id': '82649470-0d7f-43b1-94b0-277d6edfd963', 'checksum': '358c6dcef4442790decb0a5c03fb320154f9d1dd5b4618e301f9e6661a413cb5', 'metadata': {...}, 'provider': 'internal_genvoice', 'mime_type': 'audio/wav', 'checked_at': '2026-04-26T14:51:02.658668+00:00', 'created_at': '2026-04-26T14:51:02.658668+00:00', 'input_hash': '2847713c2867612195721d72a316561747a7b14565194e434bc5950059504aa9', 'public_url': '/artifacts/audio/82649470-0d7f-43b1-94b0-277d6edfd963.preview.wav', 'size_bytes': 16044, 'artifact_id': 'e046a59a-9aba-5d6c-9e61-b69a1fe1ab0c', 'storage_key': 'audio/82649470-0d7f-43b1-94b0-277d6edfd963.preview.wav', 'lineage_pass': True, 'artifact_type': 'preview', 'contract_pass': True, 'model_version': 'internal_genvoice/silent-wav-v1', 'so...', ...}]}
+worker-1  | [2026-04-30 12:50:29,838: INFO/MainProcess] Connected to redis://redis:6379/0
+worker-1  | [2026-04-30 12:50:29,857: INFO/MainProcess] mingle: searching for neighbors
+worker-1  | [2026-04-30 12:50:30,889: INFO/MainProcess] mingle: all alone
+worker-1  | [2026-04-30 12:50:30,905: INFO/MainProcess] celery@94ee8b193a3d ready.
+worker-1  | [2026-04-30 12:56:53,864: INFO/MainProcess] Task audio.process_tts_job[5e4b6475-2ca5-490e-9c83-842c8400610c] received
+worker-1  | [2026-04-30 12:56:54,003: INFO/ForkPoolWorker-2] Task audio.process_tts_job[5e4b6475-2ca5-490e-9c83-842c8400610c] succeeded in 0.13466871499986155s: {'job_id': 'e1a8d5f4-936b-4a4b-af36-15abddeff9d4', 'status': 'succeeded', 'provider': 'internal_genvoice', 'artifacts': [{'url': '/artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.preview.wav', 'path': '/artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.preview.wav', 'job_id': 'e1a8d5f4-936b-4a4b-af36-15abddeff9d4', 'checksum': '358c6dcef4442790decb0a5c03fb320154f9d1dd5b4618e301f9e6661a413cb5', 'metadata': {...}, 'provider': 'internal_genvoice', 'mime_type': 'audio/wav', 'checked_at': '2026-04-30T12:56:53.954826+00:00', 'created_at': '2026-04-30T12:56:53.954826+00:00', 'input_hash': '2847713c2867612195721d72a316561747a7b14565194e434bc5950059504aa9', 'public_url': '/artifacts/audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.preview.wav', 'signal_rms': 0, 'size_bytes': 16044, 'artifact_id': '41509d1f-970e-5a2b-b62c-24a2d4325484', 'signal_peak': 0, 'storage_key': 'audio/e1a8d5f4-936b-4a4b-af36-15abddeff9d4.preview.wav', 'lineage_pass': True, 'artifact_type': 'preview', 'contract_pass': True, 'model_version': 'in...', ...}]}
 GO

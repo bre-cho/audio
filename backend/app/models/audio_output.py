@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +29,12 @@ class AudioOutput(Base):
     model_version: Mapped[str | None] = mapped_column(String(120))
     template_version: Mapped[str | None] = mapped_column(String(120))
     runtime_version: Mapped[str | None] = mapped_column(String(120))
+    generation_mode: Mapped[str] = mapped_column(String(32), nullable=False, default='unknown')
+    provider_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    audio_contains_signal: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    signal_rms: Mapped[int | None] = mapped_column(Integer)
+    signal_peak: Mapped[int | None] = mapped_column(Integer)
+    quality_report: Mapped[dict | None] = mapped_column(JSONB)
     promotion_status: Mapped[str] = mapped_column(String(50), nullable=False, default='generated')
     metadata_json: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))

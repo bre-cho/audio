@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.audio_factory.schemas import AudioArtifactContract
+from app.core.runtime_guard import is_production_like
 from app.core.storage import compute_sha256
 
 
@@ -42,7 +43,16 @@ class ArtifactValidationService:
                     f"Artifact validation failed for {contract.artifact_type}: {failed}"
                 )
 
-            contract.promotion_status = "contract_verified"
+            if contract.promotion_status != "blocked":
+                if is_production_like() and (
+                    contract.generation_mode != "real"
+                    or contract.audio_contains_signal is not True
+                    or contract.provider_verified is not True
+                ):
+                    contract.promotion_status = "blocked"
+                    contract.promotion_reason = "artifact failed strict runtime truth gates"
+                else:
+                    contract.promotion_status = "contract_verified"
             summaries.append(
                 {
                     "artifact_id": contract.artifact_id,

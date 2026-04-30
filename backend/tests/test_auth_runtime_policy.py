@@ -1,4 +1,5 @@
 import uuid
+import warnings
 
 import jwt
 
@@ -18,7 +19,9 @@ def test_reject_short_jwt_key_in_production(client, monkeypatch):
     monkeypatch.setattr(settings, 'jwt_secret_key', 'short-key')
     monkeypatch.setattr(settings, 'jwt_algorithm', 'HS256')
 
-    token = jwt.encode({'sub': str(uuid.uuid4())}, 'short-key', algorithm='HS256')
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', message='.*HMAC key is.*below the minimum recommended length.*')
+        token = jwt.encode({'sub': str(uuid.uuid4())}, 'short-key', algorithm='HS256')
     response = client.post('/api/v1/affiliate/enroll', headers={'Authorization': f'Bearer {token}'})
 
     assert response.status_code == 500

@@ -108,6 +108,35 @@ assert_contract_code_present() {
     || fail "truthful contract status missing"
 }
 
+assert_clone_real_flow() {
+  assert_file_exists backend/app/workers/clone_tasks.py
+  assert_file_exists backend/app/providers/minimax.py
+
+  grep -q "_execute_clone_job(job_id)" backend/app/workers/clone_tasks.py \
+    && ok "clone worker uses real execution path" \
+    || fail "clone worker real execution path missing"
+
+  grep -q "StorageService().get_bytes" backend/app/workers/clone_tasks.py \
+    && ok "clone worker loads sample from storage" \
+    || fail "clone worker does not load sample from storage"
+
+  grep -q "get_audio_provider_adapter" backend/app/workers/clone_tasks.py \
+    && ok "clone worker resolves provider adapter" \
+    || fail "clone worker provider adapter call missing"
+
+  if grep -q "voice_profile_id = f\"voice_" backend/app/workers/clone_tasks.py; then
+    fail "clone worker still uses synthetic voice_profile_id placeholder"
+  else
+    ok "clone worker synthetic voice_profile_id placeholder removed"
+  fi
+
+  if grep -q "'status': 'queued'" backend/app/providers/minimax.py; then
+    fail "minimax provider still returns queued placeholder"
+  else
+    ok "minimax queued placeholder removed"
+  fi
+}
+
 run "compile backend" python -m compileall backend/app
 run "compile repo scripts" python -m compileall scripts
 
@@ -136,6 +165,7 @@ fi
 assert_no_legacy_concat
 assert_no_hardcoded_provider
 assert_contract_code_present
+assert_clone_real_flow
 resolve_compose_cmd
 
 if [[ "$VERIFY_RUNTIME" == "1" ]]; then
@@ -193,6 +223,7 @@ if [[ "$VERIFY_RUNTIME" == "1" && -d backend/tests ]]; then
     backend/tests/test_audio_route_task_mapping.py \
     backend/tests/test_audio_worker_artifact_guard.py \
     backend/tests/test_worker_retry_state_semantics.py \
+    backend/tests/test_clone_tasks.py \
     -q >> "$REPORT_FILE" 2>&1 \
     && ok "pytest audio guard tests" \
     || fail "pytest audio guard tests failed"

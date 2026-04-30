@@ -8,7 +8,10 @@ import wave
 from datetime import UTC, datetime
 from typing import Any
 
+from app.core.config import settings
+from app.core.runtime_guard import is_production_like
 from app.core.storage import StorageService, compute_sha256
+from app.services.audio_quality.audio_signal_validator import validate_wav_signal
 
 DEFAULT_PROVIDER = "internal_genvoice"
 DEFAULT_TEMPLATE_VERSION = "audio-placeholder-v1"
@@ -42,6 +45,11 @@ def _silent_wav_bytes(duration_seconds: float = 0.5) -> bytes:
     return buffer.getvalue()
 
 
+def _allow_placeholder_audio() -> bool:
+    env = (settings.app_env or "dev").strip().lower()
+    return env in {"dev", "development"} and bool(settings.allow_placeholder_audio)
+
+
 def _artifact_contract(
     *,
     job_id: str,
@@ -58,10 +66,21 @@ def _artifact_contract(
     model_version: str = DEFAULT_MODEL_VERSION,
     runtime_version: str = DEFAULT_RUNTIME_VERSION,
     parent_artifact_id: str | None = None,
+    audio_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     input_hash = stable_input_hash(request_json)
     artifact_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"audio-artifact:{job_id}:{output_type}:{input_hash}:{checksum}"))
     checked_at = datetime.now(UTC).isoformat()
+    signal_report = validate_wav_signal(audio_bytes) if audio_bytes else None
+    audio_contains_signal = bool(signal_report and signal_report.passed)
+    generation_mode = "real" if audio_contains_signal else "placeholder"
+    provider_verified = generation_mode == "real"
+    promotion_status = "contract_verified"
+    promotion_reason = "artifact passed write-time storage integrity and contract validation; replay/determinism/drift gates are pending"
+    if is_production_like() and generation_mode != "real":
+        promotion_status = "blocked"
+        promotion_reason = "placeholder or silent audio cannot be promoted in production-like runtime"
+
     return {
         "artifact_id": artifact_id,
         "artifact_type": output_type,
@@ -90,8 +109,22 @@ def _artifact_contract(
         "replayability_status": "pending",
         "determinism_status": "pending",
         "drift_budget_status": "pending",
-        "promotion_status": "contract_verified",
-        "promotion_reason": "artifact passed write-time storage integrity and contract validation; replay/determinism/drift gates are pending",
+        "generation_mode": generation_mode,
+        "provider_verified": provider_verified,
+        "audio_contains_signal": audio_contains_signal,
+        "signal_rms": signal_report.rms if signal_report else None,
+        "signal_peak": signal_report.peak if signal_report else None,
+        "quality_report": {
+            "duration_ms": signal_report.duration_ms,
+            "rms": signal_report.rms,
+            "peak": signal_report.peak,
+            "reason": signal_report.reason,
+            "passed": signal_report.passed,
+        }
+        if signal_report
+        else None,
+        "promotion_status": promotion_status,
+        "promotion_reason": promotion_reason,
         "checked_at": checked_at,
         "artifact_contract_version": ARTIFACT_CONTRACT_VERSION,
     }
@@ -107,6 +140,9 @@ def _create_artifact(
     provider: str = DEFAULT_PROVIDER,
     storage: StorageService | None = None,
 ) -> dict[str, Any]:
+    if not _allow_placeholder_audio():
+        raise RuntimeError("Placeholder audio generation is disabled for this runtime")
+
     filename = f"{job_id}.{suffix}.wav" if suffix else f"{job_id}.wav"
     storage_key = f"audio/{filename}"
     data = _silent_wav_bytes(duration_seconds)
@@ -125,6 +161,7 @@ def _create_artifact(
         size_bytes=stored.size_bytes,
         checksum=stored.checksum,
         request_json=request_json,
+        audio_bytes=data,
         provider=provider,
     )
 

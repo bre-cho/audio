@@ -27,6 +27,7 @@ on:
       - 'backend/app/main.py'
       - 'backend/app/core/config.py'
       - 'scripts/ci/verify_audio_*.sh'
+      - 'scripts/ci/verify_p2_engines.sh'
       - 'scripts/ci/audio_fail_safe.sh'
       - 'scripts/ci/build_audio_slack_payload.py'
       - '.github/workflows/audio-ci-e2e.yml'
@@ -48,6 +49,7 @@ on:
       - 'backend/app/main.py'
       - 'backend/app/core/config.py'
       - 'scripts/ci/verify_audio_*.sh'
+      - 'scripts/ci/verify_p2_engines.sh'
       - 'scripts/ci/audio_fail_safe.sh'
       - 'scripts/ci/build_audio_slack_payload.py'
       - '.github/workflows/audio-ci-e2e.yml'
@@ -104,7 +106,7 @@ jobs:
         run: |
           cp backend/.env.example backend/.env.dev || true
           mkdir -p artifacts/audio-ci
-          chmod +x scripts/ci/verify_audio_patch.sh scripts/ci/verify_audio_e2e.sh scripts/ci/audio_fail_safe.sh
+          chmod +x scripts/ci/verify_audio_patch.sh scripts/ci/verify_audio_e2e.sh scripts/ci/verify_p2_engines.sh scripts/ci/verify_provider_capabilities.sh scripts/ci/verify_audio_truth_gate.sh scripts/ci/audio_fail_safe.sh
 
       - name: Install backend dependencies for static check
         working-directory: backend
@@ -132,6 +134,15 @@ jobs:
           SKIP_STACK_UP: "1"
           VERIFY_RUNTIME: "1"
         run: bash scripts/ci/verify_audio_patch.sh
+
+      - name: Verify P2 engines
+        run: bash scripts/ci/verify_p2_engines.sh
+
+      - name: Verify provider capabilities
+        run: bash scripts/ci/verify_provider_capabilities.sh
+
+      - name: Verify runtime truth gate
+        run: bash scripts/ci/verify_audio_truth_gate.sh
 
       - name: Audio end-to-end verify
         id: audio_e2e

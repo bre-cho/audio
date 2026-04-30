@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import mimetypes
 from datetime import UTC, datetime
 from uuid import UUID
 
 from app.audio_factory import AudioFactoryExecutor, AudioJobFinalizer, AudioTaskRequest, AudioWorkflowType
+from app.core.runtime_guard import RuntimeGuardError, assert_real_provider
+from app.core.storage import StorageService
 from app.db.session import SessionLocal
 from app.models.audio_job import AudioJob
+from app.models.voice import Voice
 from app.services.audio_artifact_service import write_clone_preview_artifact
-from app.services.audio_provider_router import resolve_audio_provider
+from app.services.audio_provider_router import get_audio_provider_adapter, resolve_audio_provider
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -21,6 +26,7 @@ class _ClonePreviewRuntime:
             requested_provider=task.provider,
             default_provider="internal_genvoice",
         )
+        assert_real_provider(provider, feature=task.workflow_type.value)
         return write_clone_preview_artifact(
             task.source_job_id or "",
             request_json=task.request_json,
@@ -64,6 +70,7 @@ def _get_job_snapshot(job_id: str) -> dict | None:
             return None
         return {
             "id": str(job.id),
+            "user_id": str(job.user_id),
             "job_type": job.job_type,
             "workflow_type": job.workflow_type,
             "request_json": job.request_json or {},
@@ -126,25 +133,109 @@ def _finalize_clone_preview_success(job_id: str, *, execution, provider: str) ->
         db.close()
 
 
+def _is_permanent_clone_error(exc: Exception) -> bool:
+    return isinstance(exc, (ValueError, FileNotFoundError, RuntimeGuardError, NotImplementedError))
+
+
+def _execute_clone_job(job_id: str) -> dict:
+    snapshot = _get_job_snapshot(job_id)
+    if snapshot is None:
+        raise ValueError(f"clone job {job_id} not found")
+
+    payload = snapshot.get("request_json") or {}
+    provider = resolve_audio_provider(
+        requested_provider=payload.get("provider"),
+        default_provider="elevenlabs",
+    )
+    adapter = get_audio_provider_adapter(provider)
+
+    sample_file_id = str(payload.get("sample_file_id") or "").strip()
+    if not sample_file_id:
+        raise ValueError("clone job missing sample_file_id")
+
+    sample_bytes = StorageService().get_bytes(sample_file_id)
+    if len(sample_bytes) == 0:
+        raise ValueError("clone sample is empty")
+
+    sample_filename = sample_file_id.rsplit("/", 1)[-1] or "sample.wav"
+    sample_content_type = mimetypes.guess_type(sample_filename)[0] or "audio/wav"
+    clone_name = str(payload.get("name") or "").strip() or f"clone-{job_id[:8]}"
+    clone_result = asyncio.run(
+        adapter.clone_voice(
+            name=clone_name,
+            files=[sample_file_id],
+            remove_background_noise=bool(payload.get("denoise", False)),
+            options={
+                "sample_files": [
+                    {
+                        "filename": sample_filename,
+                        "content": sample_bytes,
+                        "content_type": sample_content_type,
+                    }
+                ],
+                "language_code": payload.get("language_code"),
+                "gender": payload.get("gender"),
+            },
+        )
+    )
+
+    if clone_result.status != "ready" or not clone_result.provider_voice_id:
+        error_text = clone_result.error_message or str(clone_result.raw or "clone_not_ready")
+        raise RuntimeError(f"clone provider did not return ready voice: {error_text}")
+
+    db = SessionLocal()
+    try:
+        voice = Voice(
+            user_id=UUID(snapshot["user_id"]),
+            name=clone_name,
+            source_type="cloned",
+            visibility="private",
+            language_code=payload.get("language_code"),
+            gender=payload.get("gender"),
+            consent_status="confirmed" if payload.get("consent_confirmed") else "unknown",
+            provider_status="ready",
+            sample_count=1,
+            external_voice_id=clone_result.provider_voice_id,
+            metadata_json={
+                "provider": provider,
+                "clone_job_id": job_id,
+                "sample_file_id": sample_file_id,
+                "provider_raw": clone_result.raw,
+            },
+        )
+        db.add(voice)
+        db.commit()
+        db.refresh(voice)
+        return {
+            "provider": provider,
+            "provider_voice_id": clone_result.provider_voice_id,
+            "external_voice_id": clone_result.provider_voice_id,
+            "voice_profile_id": str(voice.id),
+            "voice_id": str(voice.id),
+            "sample_file_id": sample_file_id,
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name='audio.process_clone_job', bind=True, max_retries=3)
 def process_clone_job(self, job_id: str) -> dict:
     try:
         _update_job(job_id, status='processing', started_at=datetime.now(UTC))
-        voice_profile_id = f"voice_{job_id}"
-        runtime = {
-            'provider': 'internal_genvoice',
-            'voice_profile_id': voice_profile_id,
-        }
+        runtime = _execute_clone_job(job_id)
         _update_job(
             job_id,
             status='succeeded',
             runtime_json=runtime,
             finished_at=datetime.now(UTC),
         )
-        return {'job_id': job_id, 'status': 'succeeded', 'voice_profile_id': voice_profile_id}
+        return {'job_id': job_id, 'status': 'succeeded', **runtime}
     except Exception as exc:
         logger.exception("Clone task failed for %s", job_id)
-        if self.request.retries >= self.max_retries:
+        if _is_permanent_clone_error(exc) or self.request.retries >= self.max_retries:
             _update_job(
                 job_id,
                 status='failed',
@@ -152,6 +243,7 @@ def process_clone_job(self, job_id: str) -> dict:
                 error_message=str(exc),
                 finished_at=datetime.now(UTC),
             )
+            raise
         else:
             _update_job(
                 job_id,

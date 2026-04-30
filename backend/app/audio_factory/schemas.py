@@ -67,6 +67,12 @@ class AudioArtifactContract(BaseModel):
     replayability_status: str = "pending"
     determinism_status: str = "pending"
     drift_budget_status: str = "pending"
+    generation_mode: str = "unknown"
+    provider_verified: bool = False
+    audio_contains_signal: bool = False
+    signal_rms: int | None = None
+    signal_peak: int | None = None
+    quality_report: dict[str, Any] | None = None
     promotion_status: str = "generated"
     promotion_reason: str | None = None
     checked_at: str | None = None

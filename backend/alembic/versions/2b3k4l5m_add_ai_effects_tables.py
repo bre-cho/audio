@@ -21,8 +21,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Create audio_effects table
-    op.create_table(
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    def _table_exists(table_name: str) -> bool:
+        return inspector.has_table(table_name)
+
+    def _ensure_index(table_name: str, index_name: str, columns: list[str]) -> None:
+        existing_indexes = {index["name"] for index in sa.inspect(bind).get_indexes(table_name)}
+        if index_name not in existing_indexes:
+            op.create_index(index_name, table_name, columns, unique=False)
+
+    if not _table_exists('audio_effects'):
+        op.create_table(
         'audio_effects',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('name', sa.String(length=150), nullable=False),
@@ -32,11 +43,11 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index('ix_audio_effects_effect_type', 'audio_effects', ['effect_type'], unique=False)
+        )
+    _ensure_index('audio_effects', 'ix_audio_effects_effect_type', ['effect_type'])
 
-    # Create user_audio_effect_presets table
-    op.create_table(
+    if not _table_exists('user_audio_effect_presets'):
+        op.create_table(
         'user_audio_effect_presets',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -49,13 +60,23 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(['effect_id'], ['audio_effects.id'], ),
         sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index('ix_user_audio_effect_presets_user_id', 'user_audio_effect_presets', ['user_id'], unique=False)
+        )
+    _ensure_index('user_audio_effect_presets', 'ix_user_audio_effect_presets_user_id', ['user_id'])
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index('ix_user_audio_effect_presets_user_id', table_name='user_audio_effect_presets')
-    op.drop_table('user_audio_effect_presets')
-    op.drop_index('ix_audio_effects_effect_type', table_name='audio_effects')
-    op.drop_table('audio_effects')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    def _drop_index_if_exists(table_name: str, index_name: str) -> None:
+        existing_indexes = {index["name"] for index in sa.inspect(bind).get_indexes(table_name)} if inspector.has_table(table_name) else set()
+        if index_name in existing_indexes:
+            op.drop_index(index_name, table_name=table_name)
+
+    _drop_index_if_exists('user_audio_effect_presets', 'ix_user_audio_effect_presets_user_id')
+    if inspector.has_table('user_audio_effect_presets'):
+        op.drop_table('user_audio_effect_presets')
+    _drop_index_if_exists('audio_effects', 'ix_audio_effects_effect_type')
+    if inspector.has_table('audio_effects'):
+        op.drop_table('audio_effects')

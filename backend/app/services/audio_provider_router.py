@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from app.core.runtime_guard import assert_real_provider
 from app.services.audio.provider_base import BaseAudioProviderAdapter
 from app.services.audio.providers.elevenlabs_provider import ElevenLabsAudioProvider
 from app.services.audio.providers.minimax_provider import MinimaxAudioProvider
@@ -37,8 +38,15 @@ def get_audio_provider_adapter(provider: str | None) -> BaseAudioProviderAdapter
 
 
 def resolve_audio_provider(*, requested_provider: str | None, voice_provider: str | None = None, default_provider: str = "elevenlabs") -> str:
+    feature = "audio_provider_resolve"
     if requested_provider:
-        return normalize_audio_provider_name(requested_provider)
+        resolved = normalize_audio_provider_name(requested_provider)
+        assert_real_provider(resolved, feature=feature)
+        return resolved
     if voice_provider:
-        return normalize_audio_provider_name(voice_provider)
-    return normalize_audio_provider_name(default_provider)
+        resolved = normalize_audio_provider_name(voice_provider)
+        assert_real_provider(resolved, feature=feature)
+        return resolved
+    resolved = normalize_audio_provider_name(default_provider)
+    assert_real_provider(resolved, feature=feature)
+    return resolved

@@ -1,5 +1,4 @@
 from fastapi import APIRouter
-from fastapi import APIRouter
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.core.config import settings
 from app.models.audio_job import AudioJob
+from app.providers.capability_registry import CAPABILITIES
 from app.schemas.provider import ProviderOut
 
 router = APIRouter()
@@ -16,11 +16,33 @@ router = APIRouter()
 
 @router.get('', response_model=list[ProviderOut])
 async def list_providers() -> list[ProviderOut]:
-    return [
-        ProviderOut(code='elevenlabs', name='ElevenLabs', status='active'),
-        ProviderOut(code='minimax', name='Minimax', status='active'),
-        ProviderOut(code='internal_genvoice', name='Internal GenVoice', status='disabled'),
-    ]
+    names = {
+        'elevenlabs': 'ElevenLabs',
+        'minimax': 'Minimax',
+        'internal_genvoice': 'Internal GenVoice',
+    }
+    providers: list[ProviderOut] = []
+    for code, caps in CAPABILITIES.items():
+        providers.append(
+            ProviderOut(
+                code=code,
+                name=names.get(code, code),
+                status=caps.status,
+                production_ready=caps.production_ready,
+                capabilities={
+                    'tts': caps.tts,
+                    'voice_clone': caps.voice_clone,
+                    'voice_conversion': caps.voice_conversion,
+                    'voice_design': caps.voice_design,
+                    'sound_effect': caps.sound_effect,
+                    'noise_reduction': caps.noise_reduction,
+                    'voice_enhancement': caps.voice_enhancement,
+                    'podcast_mix': caps.podcast_mix,
+                },
+                reason=caps.reason,
+            )
+        )
+    return providers
 
 
 @router.get('/health')

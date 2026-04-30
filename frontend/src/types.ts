@@ -1,10 +1,64 @@
 export type ProviderCode = 'elevenlabs' | 'minimax' | 'internal_genvoice';
-export type Screen = 'tts' | 'conversation' | 'voiceChanger' | 'studio' | 'library' | 'history' | 'affiliate' | 'aiEffects' | 'governance';
+export type Screen = 'tts' | 'conversation' | 'voiceChanger' | 'p2Processor' | 'studio' | 'library' | 'history' | 'affiliate' | 'aiEffects' | 'governance';
 
 export interface ProviderOut {
   code: ProviderCode | string;
   name: string;
   status: string;
+  production_ready?: boolean;
+  capabilities?: Record<string, boolean>;
+  reason?: string | null;
+}
+
+export interface FeatureCapabilityOut {
+  feature: string;
+  status: 'ready' | 'partial' | 'disabled' | 'planned' | string;
+  reason?: string | null;
+  providers: string[];
+}
+
+export interface AudioCapabilitiesOut {
+  features: FeatureCapabilityOut[];
+}
+
+export interface AudioProcessResponse {
+  status: string;
+  output_key: string;
+  public_url?: string | null;
+  checksum?: string | null;
+  size_bytes?: number | null;
+  noise_report?: Record<string, unknown>;
+  enhancement_report?: Record<string, unknown>;
+  mix_report?: Record<string, unknown>;
+}
+
+export interface NoiseReduceRequest {
+  storage_key?: string;
+  audio_b64?: string;
+  strength?: number;
+  noise_profile_ms?: number;
+  voice_profile?: 'balanced' | 'narration' | 'podcast' | 'livestream' | string;
+}
+
+export interface VoiceEnhanceRequest {
+  storage_key?: string;
+  audio_b64?: string;
+  preset?: 'clean' | 'broadcast' | 'podcast' | string;
+  voice_profile?: 'balanced' | 'warm' | 'bright' | 'broadcast' | string;
+}
+
+export interface PodcastSegmentIn {
+  storage_key?: string;
+  audio_b64?: string;
+  speaker?: string;
+  pause_after_ms?: number;
+}
+
+export interface PodcastMixRequest {
+  title: string;
+  segments: PodcastSegmentIn[];
+  target_sample_rate?: number;
+  crossfade_ms?: number;
 }
 
 export interface VoiceOut {

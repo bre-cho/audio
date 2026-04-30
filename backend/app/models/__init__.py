@@ -6,6 +6,7 @@ from app.models.credit_ledger import CreditLedger  # noqa: F401
 from app.models.decision import DecisionRecord  # noqa: F401
 from app.models.project import Project  # noqa: F401
 from app.models.provider import Provider  # noqa: F401
+from app.models.provider_capability import ProviderCapability  # noqa: F401
 from app.models.remediation import LastSafePolicy, RemediationRecord, Runbook  # noqa: F401
 from app.models.script_asset import ScriptAsset  # noqa: F401
 from app.models.voice import Voice  # noqa: F401
@@ -24,6 +25,7 @@ __all__ = [
     "Payout",
     "Project",
     "Provider",
+    "ProviderCapability",
     "Referral",
     "RemediationRecord",
     "Runbook",

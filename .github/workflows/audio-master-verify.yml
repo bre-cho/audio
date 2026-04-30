@@ -37,11 +37,13 @@ jobs:
       - name: Prepare env and permissions
         run: |
           mkdir -p artifacts/audio-ci
-          chmod +x scripts/ci/verify_audio_patch.sh scripts/ci/verify_audio_e2e.sh scripts/ci/audio_fail_safe.sh
+          chmod +x scripts/ci/verify_audio_patch.sh scripts/ci/verify_audio_e2e.sh scripts/ci/verify_p2_engines.sh scripts/ci/verify_provider_capabilities.sh scripts/ci/verify_audio_truth_gate.sh scripts/ci/audio_fail_safe.sh
       - name: Static verify scripts
         run: |
           bash -n scripts/ci/verify_audio_patch.sh
           bash -n scripts/ci/verify_audio_e2e.sh
+          bash -n scripts/ci/verify_provider_capabilities.sh
+          bash -n scripts/ci/verify_audio_truth_gate.sh
       - name: Compile backend
         run: |
           python -m compileall backend/app
@@ -74,6 +76,15 @@ jobs:
           PYTHONPATH: backend
         run: |
           SKIP_STACK_UP=1 VERIFY_RUNTIME=1 bash scripts/ci/verify_audio_patch.sh
+      - name: Verify P2 engines
+        run: |
+          bash scripts/ci/verify_p2_engines.sh
+      - name: Verify provider capabilities
+        run: |
+          bash scripts/ci/verify_provider_capabilities.sh
+      - name: Verify runtime truth gate
+        run: |
+          bash scripts/ci/verify_audio_truth_gate.sh
       - name: Coverage gate (backend)
         env:
           DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/audio_ai

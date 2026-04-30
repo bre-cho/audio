@@ -1,5 +1,13 @@
 Listing 'backend/app'...
 Listing 'backend/app/api'...
+Listing 'backend/app/audio_engines'...
+Listing 'backend/app/audio_engines/enhancer'...
+Listing 'backend/app/audio_engines/noise_reducer'...
+Listing 'backend/app/audio_engines/podcast'...
+Listing 'backend/app/audio_engines/quality'...
+Listing 'backend/app/audio_engines/sound_effects'...
+Listing 'backend/app/audio_engines/voice_changer'...
+Listing 'backend/app/audio_engines/voice_design'...
 Listing 'backend/app/audio_factory'...
 Listing 'backend/app/core'...
 Listing 'backend/app/db'...
@@ -10,6 +18,7 @@ Listing 'backend/app/schemas'...
 Listing 'backend/app/services'...
 Listing 'backend/app/services/audio'...
 Listing 'backend/app/services/audio/providers'...
+Listing 'backend/app/services/audio_quality'...
 Listing 'backend/app/utils'...
 Listing 'backend/app/workers'...
 OK: compile backend
@@ -42,11 +51,18 @@ OK: artifact writer uses StorageService
 OK: audio output DB persistence delegated to factory executor
 OK: workflow_type persisted on audio jobs
 OK: truthful contract status present
+OK: file exists: backend/app/workers/clone_tasks.py
+OK: file exists: backend/app/providers/minimax.py
+OK: clone worker uses real execution path
+OK: clone worker loads sample from storage
+OK: clone worker resolves provider adapter
+OK: clone worker synthetic voice_profile_id placeholder removed
+OK: minimax queued placeholder removed
 OK: skip stack up
 [wait_for_stack] waiting up to 300s for http://localhost:8000 ...
 [wait_for_stack] healthy: http://localhost:8000/healthz
 OK: stack healthy
-->  celery@366898560cd3: OK
+->  celery@94ee8b193a3d: OK
         pong
 
 1 node online.
@@ -71,97 +87,34 @@ libpostproc    58.  3.100 / 58.  3.100
 OK: ffmpeg present
 api-1  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
 api-1  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
+api-1  | INFO  [alembic.runtime.migration] Running upgrade  -> 0001, audio factory schema
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 0001 -> 180bf7c48e34, add_new_column
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 180bf7c48e34 -> f4b28e2666cf, add_audio_job_idempotency_key
+api-1  | INFO  [alembic.runtime.migration] Running upgrade f4b28e2666cf -> 56c62fb3619e, add_idempotency_unique_constraint
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 56c62fb3619e -> 8c6b4bb9f8c1, add governance tables
+api-1  | INFO  [alembic.runtime.migration] Running upgrade f4b28e2666cf, 8c6b4bb9f8c1 -> 9a1k2l3m, add_affiliate_tables
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 9a1k2l3m -> 2b3k4l5m, add_ai_effects_tables
+api-1  | INFO  [alembic.runtime.migration] Running upgrade 2b3k4l5m -> c3d4e5f6a7b8, add p0 truth columns
+api-1  | INFO  [alembic.runtime.migration] Running upgrade c3d4e5f6a7b8 -> d4e5f6a7b8c9, add provider capabilities table
 api-1  | INFO:     Started server process [1]
 api-1  | INFO:     Waiting for application startup.
 api-1  | INFO:     Application startup complete.
 api-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-api-1  | INFO:     172.19.0.1:44374 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:44386 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.5:36136 - "GET /api/v1/providers HTTP/1.0" 200 OK
-api-1  | INFO:     127.0.0.1:44908 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:51626 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:46164 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:46472 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:39074 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:60392 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:53328 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:46266 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.5:60194 - "GET /api/v1/providers HTTP/1.0" 200 OK
-api-1  | INFO:     127.0.0.1:55320 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:46042 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     Shutting down
-api-1  | INFO:     Waiting for application shutdown.
-api-1  | INFO:     Application shutdown complete.
-api-1  | INFO:     Finished server process [1]
-api-1  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
-api-1  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
-api-1  | INFO:     Started server process [1]
-api-1  | INFO:     Waiting for application startup.
-api-1  | INFO:     Application startup complete.
-api-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-api-1  | INFO:     127.0.0.1:54064 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:59666 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:50114 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:34086 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:59268 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:58894 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:56536 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:47988 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:54792 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:43894 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:60612 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:33590 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:60742 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:60512 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:51526 - "GET /health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:51532 - "GET /api/v1/health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:51538 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:50208 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:60118 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:52296 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:49174 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:35896 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:51826 - "GET /health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:51836 - "GET /api/v1/health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:51848 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:41580 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:60582 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:33016 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:49222 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:45976 - "GET /health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:45978 - "GET /api/v1/health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:45994 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:51918 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:52722 - "HEAD /artifacts/audio/static-probe.txt HTTP/1.1" 404 Not Found
-api-1  | INFO:     127.0.0.1:46372 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:39322 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:41892 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:55858 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:59240 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:44502 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:41734 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:58626 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:42648 - "GET /health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:42652 - "GET /api/v1/health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:42662 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:46456 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:54186 - "HEAD /artifacts/audio/static-probe.txt HTTP/1.1" 404 Not Found
-api-1  | INFO:     127.0.0.1:38182 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:34702 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:35902 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:48252 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:54166 - "GET /health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:54170 - "GET /api/v1/health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:54172 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:60096 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:37760 - "HEAD /artifacts/audio/static-probe.txt HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:34240 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:33484 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:58272 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     172.19.0.1:33268 - "GET /health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:33282 - "GET /api/v1/health HTTP/1.1" 404 Not Found
-api-1  | INFO:     172.19.0.1:33286 - "GET /healthz HTTP/1.1" 200 OK
-api-1  | INFO:     127.0.0.1:60830 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:40648 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:45762 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:36404 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:42462 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:37980 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:36116 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:48518 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:34832 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:36580 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:34462 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     172.19.0.1:36550 - "GET /health HTTP/1.1" 404 Not Found
+api-1  | INFO:     172.19.0.1:36566 - "GET /api/v1/health HTTP/1.1" 404 Not Found
+api-1  | INFO:     172.19.0.1:36570 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:48288 - "GET /healthz HTTP/1.1" 200 OK
+api-1  | INFO:     127.0.0.1:53566 - "GET /healthz HTTP/1.1" 200 OK
 worker-1  | /usr/local/lib/python3.12/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
 worker-1  | absolutely not recommended!
 worker-1  | 
@@ -171,12 +124,12 @@ worker-1  | User information: uid=0 euid=0 gid=0 egid=0
 worker-1  | 
 worker-1  |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
 worker-1  |  
-worker-1  |  -------------- celery@366898560cd3 v5.6.3 (recovery)
+worker-1  |  -------------- celery@94ee8b193a3d v5.6.3 (recovery)
 worker-1  | --- ***** ----- 
-worker-1  | -- ******* ---- Linux-6.8.0-1044-azure-x86_64-with-glibc2.41 2026-04-25 19:25:46
+worker-1  | -- ******* ---- Linux-6.8.0-1044-azure-x86_64-with-glibc2.41 2026-04-30 12:50:29
 worker-1  | - *** --- * --- 
 worker-1  | - ** ---------- [config]
-worker-1  | - ** ---------- .> app:         audio_ai_workers:0x783e7c261190
+worker-1  | - ** ---------- .> app:         audio_ai_workers:0x7f193e662ab0
 worker-1  | - ** ---------- .> transport:   redis://redis:6379/0
 worker-1  | - ** ---------- .> results:     redis://redis:6379/0
 worker-1  | - *** --- * --- .> concurrency: 2 (prefork)
@@ -187,71 +140,28 @@ worker-1  |                 .> audio            exchange=audio(direct) key=audio
 worker-1  |                 
 worker-1  | 
 worker-1  | [tasks]
+worker-1  |   . audio.process_audio_effect_job
 worker-1  |   . audio.process_batch_job
 worker-1  |   . audio.process_clone_job
 worker-1  |   . audio.process_clone_preview_job
 worker-1  |   . audio.process_conversation_job
 worker-1  |   . audio.process_tts_job
+worker-1  |   . audio.process_voice_shift_job
 worker-1  | 
-worker-1  | [2026-04-25 19:25:47,086: INFO/MainProcess] Connected to redis://redis:6379/0
-worker-1  | [2026-04-25 19:25:47,091: INFO/MainProcess] mingle: searching for neighbors
-worker-1  | [2026-04-25 19:25:48,122: INFO/MainProcess] mingle: all alone
-worker-1  | [2026-04-25 19:25:48,142: INFO/MainProcess] celery@366898560cd3 ready.
-worker-1  | [2026-04-25 19:25:49,211: INFO/MainProcess] Task audio.process_conversation_job[2cd9f7b8-8f55-461b-a15b-196f02bc2d74] received
-worker-1  | [2026-04-25 19:25:49,290: INFO/ForkPoolWorker-2] Task audio.process_conversation_job[2cd9f7b8-8f55-461b-a15b-196f02bc2d74] succeeded in 0.07832052599997041s: {'job_id': 'c014f4b2-b87b-4db2-a976-c14ac420b0c4', 'status': 'succeeded', 'preview_url': '/artifacts/audio/c014f4b2-b87b-4db2-a976-c14ac420b0c4.preview.wav', 'output_url': '/artifacts/audio/c014f4b2-b87b-4db2-a976-c14ac420b0c4.wav', 'artifacts': [{'artifact_id': '16671fe7-197f-5f71-82d5-f3ba5057b08f', 'artifact_type': 'preview', 'source_job_id': 'c014f4b2-b87b-4db2-a976-c14ac420b0c4', 'job_id': 'c014f4b2-b87b-4db2-a976-c14ac420b0c4', 'storage_key': 'audio/c014f4b2-b87b-4db2-a976-c14ac420b0c4.preview.wav', 'path': '/artifacts/audio/c014f4b2-b87b-4db2-a976-c14ac420b0c4.preview.wav', 'url': '/artifacts/audio/c014f4b2-b87b-4db2-a976-c14ac420b0c4.preview.wav', 'public_url': '/artifacts/audio/c014f4b2-b87b-4db2-a976-c14ac420b0c4.preview.wav', 'mime_type': 'audio/wav', 'size_bytes': 16044, 'checksum': '358c6dcef4442790decb0a5c03fb320154f9d1dd5b4618e301f9e6661a413cb5', 'input_hash': 'd44393a838836f46253da78db79606e2465a07a066b4ca100e274762aa2ee417', 'provider': 'internal_genvoice', 'model_version': 'internal_genvoice/...', ...}]}
-worker-1  | [2026-04-25 19:25:49,849: INFO/MainProcess] Task audio.process_clone_preview_job[89c7a930-8c15-4742-ae2f-4f48b86b1cc7] received
-worker-1  | [2026-04-25 19:25:49,873: INFO/ForkPoolWorker-2] Task audio.process_clone_preview_job[89c7a930-8c15-4742-ae2f-4f48b86b1cc7] succeeded in 0.022554934000254434s: {'job_id': '4fd38f42-3191-4919-a7ed-e8dc9391b0be', 'status': 'succeeded', 'preview_url': '/artifacts/audio/4fd38f42-3191-4919-a7ed-e8dc9391b0be.clone_preview.wav', 'artifacts': [{'artifact_id': 'f2de1efd-65e4-5a13-8fec-a37979a5ab0f', 'artifact_type': 'clone_preview', 'source_job_id': '4fd38f42-3191-4919-a7ed-e8dc9391b0be', 'job_id': '4fd38f42-3191-4919-a7ed-e8dc9391b0be', 'storage_key': 'audio/4fd38f42-3191-4919-a7ed-e8dc9391b0be.clone_preview.wav', 'path': '/artifacts/audio/4fd38f42-3191-4919-a7ed-e8dc9391b0be.clone_preview.wav', 'url': '/artifacts/audio/4fd38f42-3191-4919-a7ed-e8dc9391b0be.clone_preview.wav', 'public_url': '/artifacts/audio/4fd38f42-3191-4919-a7ed-e8dc9391b0be.clone_preview.wav', 'mime_type': 'audio/wav', 'size_bytes': 16044, 'checksum': '358c6dcef4442790decb0a5c03fb320154f9d1dd5b4618e301f9e6661a413cb5', 'input_hash': 'b873bfc8c7250f3a9528cf7d050f41e7acf6a296527bfad23dcce113aee23acf', 'provider': 'internal_genvoice', 'model_version': 'internal_genvoice/silent-wav-v1', 'template_version': 'au...', ...}]}
-worker-1  | /usr/local/lib/python3.12/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
-worker-1  | absolutely not recommended!
-worker-1  | 
-worker-1  | Please specify a different user using the --uid option.
-worker-1  | 
-worker-1  | User information: uid=0 euid=0 gid=0 egid=0
-worker-1  | 
-worker-1  |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
-worker-1  |  
-worker-1  |  -------------- celery@366898560cd3 v5.6.3 (recovery)
-worker-1  | --- ***** ----- 
-worker-1  | -- ******* ---- Linux-6.8.0-1044-azure-x86_64-with-glibc2.41 2026-04-26 14:41:24
-worker-1  | - *** --- * --- 
-worker-1  | - ** ---------- [config]
-worker-1  | - ** ---------- .> app:         audio_ai_workers:0x7f517d3b8b00
-worker-1  | - ** ---------- .> transport:   redis://redis:6379/0
-worker-1  | - ** ---------- .> results:     redis://redis:6379/0
-worker-1  | - *** --- * --- .> concurrency: 2 (prefork)
-worker-1  | -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
-worker-1  | --- ***** ----- 
-worker-1  |  -------------- [queues]
-worker-1  |                 .> audio            exchange=audio(direct) key=audio
-worker-1  |                 
-worker-1  | 
-worker-1  | [tasks]
-worker-1  |   . audio.process_batch_job
-worker-1  |   . audio.process_clone_job
-worker-1  |   . audio.process_clone_preview_job
-worker-1  |   . audio.process_conversation_job
-worker-1  |   . audio.process_tts_job
-worker-1  | 
-worker-1  | [2026-04-26 14:41:24,464: INFO/MainProcess] Connected to redis://redis:6379/0
-worker-1  | [2026-04-26 14:41:24,470: INFO/MainProcess] mingle: searching for neighbors
-worker-1  | [2026-04-26 14:41:25,482: INFO/MainProcess] mingle: all alone
-worker-1  | [2026-04-26 14:41:25,502: INFO/MainProcess] celery@366898560cd3 ready.
+worker-1  | [2026-04-30 12:50:29,838: INFO/MainProcess] Connected to redis://redis:6379/0
+worker-1  | [2026-04-30 12:50:29,857: INFO/MainProcess] mingle: searching for neighbors
+worker-1  | [2026-04-30 12:50:30,889: INFO/MainProcess] mingle: all alone
+worker-1  | [2026-04-30 12:50:30,905: INFO/MainProcess] celery@94ee8b193a3d ready.
 HTTP/1.1 200 OK
-date: Sun, 26 Apr 2026 14:48:33 GMT
+date: Thu, 30 Apr 2026 12:52:28 GMT
 server: uvicorn
 content-type: text/plain; charset=utf-8
 accept-ranges: bytes
 content-length: 5
-last-modified: Sun, 26 Apr 2026 14:48:34 GMT
-etag: "d6498280f8b76e72995961d2ce13ef8e"
+last-modified: Thu, 30 Apr 2026 12:52:29 GMT
+etag: "8dfb9ae69c0ff2436103b425ea864f4e"
 
 OK: artifacts static route reachable
-...................                                                      [100%]
-=============================== warnings summary ===============================
-backend/tests/test_audio_route_task_mapping.py::test_tts_generate_route_persists_tts_generate_workflow_type
-  /usr/local/python/3.12.1/lib/python3.12/site-packages/sqlalchemy/sql/schema.py:3624: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-    return util.wrap_callable(lambda ctx: fn(), fn)  # type: ignore
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-19 passed, 1 warning in 1.78s
+.......................                                                  [100%]
+23 passed in 2.93s
 OK: pytest audio guard tests

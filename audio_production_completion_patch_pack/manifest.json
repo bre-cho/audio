@@ -1,0 +1,13 @@
+{
+  "pack_name": "audio_production_completion_patch_pack",
+  "version": "1.0.0",
+  "target_repo": "audio-main(8)",
+  "mode": "additive_patch_guide",
+  "hard_locks": [
+    "No silent WAV fallback in production",
+    "No provider mock promoted as real artifact",
+    "No clone job success without external_voice_id or verified preview artifact",
+    "No audio artifact promotion without signal validation",
+    "No frontend feature marked ready unless backend route + worker + DB + provider are wired"
+  ]
+}

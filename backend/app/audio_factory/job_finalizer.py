@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.audio_factory.artifact_contract import ArtifactContractService
 from app.audio_factory.schemas import AudioArtifactContract, AudioFactoryResult
+from app.core.runtime_guard import is_production_like
 from app.models.audio_job import AudioJob
 from app.models.audio_output import AudioOutput
 
@@ -87,6 +88,7 @@ class AudioJobFinalizer:
 
         self._assert_validation_passed(execution.validation)
         self._assert_artifact_contracts(execution.artifacts)
+        self._assert_artifact_truth_gates(execution.artifacts)
         self._assert_db_outputs(db=db, job=job, artifacts=execution.artifacts)
 
     def build_runtime_json(
@@ -185,6 +187,24 @@ class AudioJobFinalizer:
             if row.promotion_status not in self.VERIFIED_STATUSES:
                 raise AudioJobFinalizerError(
                     f"DB row promotion_status invalid for artifact={artifact.artifact_id}: {row.promotion_status}"
+                )
+
+    def _assert_artifact_truth_gates(self, artifacts: list[AudioArtifactContract]) -> None:
+        if not is_production_like():
+            return
+
+        for artifact in artifacts:
+            if artifact.generation_mode != "real":
+                raise AudioJobFinalizerError(
+                    f"Artifact {artifact.artifact_id} generation_mode must be real in production-like runtime"
+                )
+            if artifact.audio_contains_signal is not True:
+                raise AudioJobFinalizerError(
+                    f"Artifact {artifact.artifact_id} is missing verified audio signal"
+                )
+            if artifact.provider_verified is not True:
+                raise AudioJobFinalizerError(
+                    f"Artifact {artifact.artifact_id} provider is not verified"
                 )
 
     def _promotion_gate(

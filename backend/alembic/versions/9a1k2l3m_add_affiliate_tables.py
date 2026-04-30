@@ -21,8 +21,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Create user_affiliates table
-    op.create_table(
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    def _table_exists(table_name: str) -> bool:
+        return inspector.has_table(table_name)
+
+    def _ensure_index(table_name: str, index_name: str, columns: list[str]) -> None:
+        existing_indexes = {index["name"] for index in sa.inspect(bind).get_indexes(table_name)}
+        if index_name not in existing_indexes:
+            op.create_index(index_name, table_name, columns, unique=False)
+
+    if not _table_exists('user_affiliates'):
+        op.create_table(
         'user_affiliates',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -36,12 +47,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('user_id', name='uq_user_affiliates_user_id'),
         sa.UniqueConstraint('referral_code', name='uq_user_affiliates_referral_code'),
-    )
-    op.create_index('ix_user_affiliates_user_id', 'user_affiliates', ['user_id'], unique=False)
-    op.create_index('ix_user_affiliates_referral_code', 'user_affiliates', ['referral_code'], unique=False)
+        )
+    _ensure_index('user_affiliates', 'ix_user_affiliates_user_id', ['user_id'])
+    _ensure_index('user_affiliates', 'ix_user_affiliates_referral_code', ['referral_code'])
 
-    # Create referrals table
-    op.create_table(
+    if not _table_exists('referrals'):
+        op.create_table(
         'referrals',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('affiliate_id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -53,11 +64,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['affiliate_id'], ['user_affiliates.id'], ),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('affiliate_id', 'referred_email', name='uq_affiliate_referred_email'),
-    )
-    op.create_index('ix_referrals_affiliate_id', 'referrals', ['affiliate_id'], unique=False)
+        )
+    _ensure_index('referrals', 'ix_referrals_affiliate_id', ['affiliate_id'])
 
-    # Create commissions table
-    op.create_table(
+    if not _table_exists('commissions'):
+        op.create_table(
         'commissions',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('affiliate_id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -71,11 +82,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['source_job_id'], ['audio_jobs.id'], ),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('affiliate_id', 'referral_id', name='uq_affiliate_referral_commission'),
-    )
-    op.create_index('ix_commissions_affiliate_id', 'commissions', ['affiliate_id'], unique=False)
+        )
+    _ensure_index('commissions', 'ix_commissions_affiliate_id', ['affiliate_id'])
 
-    # Create payouts table
-    op.create_table(
+    if not _table_exists('payouts'):
+        op.create_table(
         'payouts',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('affiliate_id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -88,18 +99,30 @@ def upgrade() -> None:
         sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(['affiliate_id'], ['user_affiliates.id'], ),
         sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index('ix_payouts_affiliate_id', 'payouts', ['affiliate_id'], unique=False)
+        )
+    _ensure_index('payouts', 'ix_payouts_affiliate_id', ['affiliate_id'])
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index('ix_payouts_affiliate_id', table_name='payouts')
-    op.drop_table('payouts')
-    op.drop_index('ix_commissions_affiliate_id', table_name='commissions')
-    op.drop_table('commissions')
-    op.drop_index('ix_referrals_affiliate_id', table_name='referrals')
-    op.drop_table('referrals')
-    op.drop_index('ix_user_affiliates_referral_code', table_name='user_affiliates')
-    op.drop_index('ix_user_affiliates_user_id', table_name='user_affiliates')
-    op.drop_table('user_affiliates')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    def _drop_index_if_exists(table_name: str, index_name: str) -> None:
+        existing_indexes = {index["name"] for index in sa.inspect(bind).get_indexes(table_name)} if inspector.has_table(table_name) else set()
+        if index_name in existing_indexes:
+            op.drop_index(index_name, table_name=table_name)
+
+    _drop_index_if_exists('payouts', 'ix_payouts_affiliate_id')
+    if inspector.has_table('payouts'):
+        op.drop_table('payouts')
+    _drop_index_if_exists('commissions', 'ix_commissions_affiliate_id')
+    if inspector.has_table('commissions'):
+        op.drop_table('commissions')
+    _drop_index_if_exists('referrals', 'ix_referrals_affiliate_id')
+    if inspector.has_table('referrals'):
+        op.drop_table('referrals')
+    _drop_index_if_exists('user_affiliates', 'ix_user_affiliates_referral_code')
+    _drop_index_if_exists('user_affiliates', 'ix_user_affiliates_user_id')
+    if inspector.has_table('user_affiliates'):
+        op.drop_table('user_affiliates')

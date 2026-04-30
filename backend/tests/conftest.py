@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401 — register all ORM models with Base.metadata
@@ -15,7 +15,6 @@ from app.api.deps import get_db
 from app.core.config import settings
 from app.db.base import Base
 from app.main import create_app
-from app.models.audio_output import AudioOutput
 
 _BACKEND_DIR = Path(__file__).resolve().parents[1]
 _ALEMBIC_INI = _BACKEND_DIR / "alembic.ini"
@@ -28,7 +27,9 @@ def db_engine():
         pool_pre_ping=True,
         connect_args={"connect_timeout": 3},
     )
-    AudioOutput.__table__.drop(bind=engine, checkfirst=True)
+    with engine.begin() as connection:
+        connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        connection.execute(text("CREATE SCHEMA public"))
     Base.metadata.create_all(bind=engine)
     subprocess.run(
         [sys.executable, "-m", "alembic", "-c", str(_ALEMBIC_INI), "upgrade", "head"],
