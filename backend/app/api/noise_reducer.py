@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import base64
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -17,16 +17,26 @@ router = APIRouter(prefix='/noise-reducer')
 _storage = StorageService()
 
 _WAV_MAGIC = b"RIFF"
+# Only allow safe filename characters for temp file stems
+_SAFE_NAME_RE = re.compile(r"[^a-zA-Z0-9_-]")
+
+
+def _sanitize_stem(name: str) -> str:
+    """Return a filesystem-safe stem (alphanumeric + underscore/hyphen, max 64 chars)."""
+    return _SAFE_NAME_RE.sub("_", name)[:64] or "audio"
 
 
 def _ensure_wav_bytes(data: bytes, source_name: str) -> bytes:
     """Return WAV bytes, decoding via ffmpeg if the input is not PCM WAV."""
     if data[:4] == _WAV_MAGIC:
         return data
-    # Decode any audio format to mono 16-bit PCM WAV at 44100 Hz
+    # Decode any audio format to mono 16-bit PCM WAV at 44100 Hz.
+    # source_name is already sanitized by the caller; we use a fixed temp
+    # directory so the constructed paths never leave the tmp sandbox.
+    safe_stem = _sanitize_stem(source_name)
     with tempfile.TemporaryDirectory() as tmpdir:
-        src = Path(tmpdir) / f"{source_name}.audio"
-        dst = Path(tmpdir) / f"{source_name}.wav"
+        src = Path(tmpdir) / f"{safe_stem}.audio"
+        dst = Path(tmpdir) / f"{safe_stem}.wav"
         src.write_bytes(data)
         cmd = [
             "ffmpeg", "-y", "-i", str(src),
@@ -75,8 +85,9 @@ def process_noise_reduction(req: NoiseReduceRequest) -> dict:
         if not src_path.exists():
             raise HTTPException(status_code=404, detail=f"artifact not found: {req.storage_key}")
         raw_bytes = src_path.read_bytes()
-        source_stem = Path(req.storage_key).stem
+        source_stem = _sanitize_stem(Path(req.storage_key).stem)
     elif req.audio_b64:
+        import base64
         try:
             raw_bytes = base64.b64decode(req.audio_b64)
         except Exception as exc:

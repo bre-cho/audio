@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+# Allow only alphanumeric, underscore, and hyphen in voice IDs to prevent
+# path traversal / command injection when building reference audio paths.
+_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
 
 
 @dataclass(frozen=True)
@@ -12,6 +17,13 @@ class VoiceConversionResult:
     provider: str
     target_voice_id: str
     metadata: dict
+
+
+def _validate_voice_id(voice_id: str) -> None:
+    if not _VOICE_ID_RE.match(voice_id):
+        raise ValueError(
+            f"openvoice_invalid_voice_id: voice_id must match [a-zA-Z0-9_-]{{1,128}}, got '{voice_id}'"
+        )
 
 
 class OpenVoiceConversionAdapter:
@@ -41,6 +53,8 @@ class OpenVoiceConversionAdapter:
         output_path: str,
         preserve_formants: bool = True,
     ) -> VoiceConversionResult:
+        _validate_voice_id(target_voice_id)
+
         model_path = os.getenv("OPENVOICE_MODEL_PATH", "").strip()
         script_path = os.getenv("OPENVOICE_SCRIPT_PATH", "").strip()
         ref_dir = os.getenv("OPENVOICE_REFERENCE_DIR", "").strip()
@@ -92,11 +106,15 @@ class OpenVoiceConversionAdapter:
 
     @staticmethod
     def _resolve_reference(ref_dir: str, voice_id: str) -> str:
-        """Find the reference audio file for the given voice_id."""
-        base = Path(ref_dir)
+        """Find the reference audio file for the given voice_id.
+
+        ``voice_id`` has already been validated by ``_validate_voice_id``.
+        Paths are resolved and boundary-checked to prevent traversal attacks.
+        """
+        base = Path(ref_dir).resolve()
         for ext in (".wav", ".mp3", ".flac", ".ogg"):
-            candidate = base / f"{voice_id}{ext}"
-            if candidate.exists():
+            candidate = (base / f"{voice_id}{ext}").resolve()
+            if candidate.is_relative_to(base) and candidate.exists():
                 return str(candidate)
         raise RuntimeError(
             f"openvoice_reference_not_found: no reference audio for voice_id '{voice_id}' "

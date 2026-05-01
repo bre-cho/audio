@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+# Allow only alphanumeric, underscore, and hyphen in voice IDs to prevent
+# path traversal / command injection when building model file paths.
+_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
 
 
 @dataclass(frozen=True)
@@ -12,6 +17,13 @@ class VoiceConversionResult:
     provider: str
     target_voice_id: str
     metadata: dict
+
+
+def _validate_voice_id(voice_id: str) -> None:
+    if not _VOICE_ID_RE.match(voice_id):
+        raise ValueError(
+            f"rvc_invalid_voice_id: voice_id must match [a-zA-Z0-9_-]{{1,128}}, got '{voice_id}'"
+        )
 
 
 class RVCVoiceConversionAdapter:
@@ -43,6 +55,8 @@ class RVCVoiceConversionAdapter:
         output_path: str,
         preserve_formants: bool = True,
     ) -> VoiceConversionResult:
+        _validate_voice_id(target_voice_id)
+
         model_dir = os.getenv("RVC_MODEL_DIR", "").strip()
         rvc_script = os.getenv("RVC_SCRIPT_PATH", "").strip()
         if not model_dir or not rvc_script:
@@ -99,16 +113,21 @@ class RVCVoiceConversionAdapter:
 
     @staticmethod
     def _resolve_model(model_dir: str, voice_id: str) -> str:
-        """Locate the .pth checkpoint for the given voice_id."""
-        base = Path(model_dir)
+        """Locate the .pth checkpoint for the given voice_id.
+
+        ``voice_id`` has already been validated by ``_validate_voice_id``.
+        """
+        base = Path(model_dir).resolve()
         # Accept: <model_dir>/<voice_id>.pth  OR  <model_dir>/<voice_id>/<voice_id>.pth
         candidates = [
             base / f"{voice_id}.pth",
             base / voice_id / f"{voice_id}.pth",
         ]
         for candidate in candidates:
-            if candidate.exists():
-                return str(candidate)
+            resolved = candidate.resolve()
+            # Ensure the resolved path stays within model_dir (defence-in-depth)
+            if resolved.is_relative_to(base) and resolved.exists():
+                return str(resolved)
         raise RuntimeError(
             f"rvc_model_not_found: no .pth checkpoint for voice_id '{voice_id}' "
             f"under RVC_MODEL_DIR={model_dir}"
@@ -117,12 +136,13 @@ class RVCVoiceConversionAdapter:
     @staticmethod
     def _find_index(model_dir: str, voice_id: str) -> str | None:
         """Return the .index file if it exists alongside the model checkpoint."""
-        base = Path(model_dir)
+        base = Path(model_dir).resolve()
         candidates = [
             base / f"{voice_id}.index",
             base / voice_id / f"{voice_id}.index",
         ]
         for candidate in candidates:
-            if candidate.exists():
-                return str(candidate)
+            resolved = candidate.resolve()
+            if resolved.is_relative_to(base) and resolved.exists():
+                return str(resolved)
         return None
