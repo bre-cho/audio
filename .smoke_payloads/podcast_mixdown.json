@@ -1,0 +1,7 @@
+{
+  "clips": [
+    {"path": "artifacts/audio/speaker_1.wav", "start_sec": 0, "gain": 1},
+    {"path": "artifacts/audio/speaker_2.wav", "start_sec": 4.5, "gain": 1}
+  ],
+  "output_path": "artifacts/podcast/final_mix.wav"
+}

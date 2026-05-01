@@ -31,6 +31,15 @@ from app.api import (
 	voice_library,
 	voices,
 )
+from app.api import (
+	audio_quality_v2,
+	podcast_v2,
+	runtime_truth,
+	sfx_bgm_v2,
+	system_capabilities_v2,
+	transcription_v2,
+	voice_changer_v2,
+)
 api_router = APIRouter()
 api_router.include_router(audio.router, prefix='/audio', tags=['audio'])
 api_router.include_router(system_capabilities.router)
@@ -62,3 +71,10 @@ api_router.include_router(affiliate.router, prefix='/affiliate', tags=['affiliat
 api_router.include_router(ai_effects.router, tags=['ai-effects'])
 api_router.include_router(library.router, tags=['library'])
 api_router.include_router(storage_health.router, tags=['storage'])
+api_router.include_router(runtime_truth.router, prefix='/runtime-truth', tags=['runtime-truth'])
+api_router.include_router(system_capabilities_v2.router, prefix='/system-capabilities-v2', tags=['system-capabilities'])
+api_router.include_router(transcription_v2.router, prefix='/transcription-v2', tags=['transcription'])
+api_router.include_router(podcast_v2.router, prefix='/podcast-v2', tags=['podcast'])
+api_router.include_router(voice_changer_v2.router, prefix='/voice-changer-v2', tags=['voice-changer'])
+api_router.include_router(sfx_bgm_v2.router, prefix='/sfx-bgm-v2', tags=['sfx-bgm'])
+api_router.include_router(audio_quality_v2.router, prefix='/audio-quality-v2', tags=['audio-quality'])

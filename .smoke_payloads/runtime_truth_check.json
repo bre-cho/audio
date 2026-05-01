@@ -1,0 +1,4 @@
+{
+  "provider": "internal_genvoice",
+  "capability": "tts"
+}
