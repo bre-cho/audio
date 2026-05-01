@@ -25,9 +25,12 @@ class VoiceTranslateService:
     def _translate_elevenlabs(self, payload: dict) -> dict:
         """Submit a dubbing job via ElevenLabs and return job metadata.
 
-        The caller is responsible for polling the dubbing job status using
-        the returned ``dubbing_id``.
+        The ``source_artifact_id`` must be a local file path or a resolvable
+        artifact key.  The caller is responsible for polling the dubbing job
+        status using the returned ``dubbing_id``.
         """
+        from pathlib import Path
+
         from app.providers.elevenlabs.client import ElevenLabsClient
 
         source_artifact_id = payload.get("source_artifact_id") or ""
@@ -35,19 +38,28 @@ class VoiceTranslateService:
         if not source_artifact_id or not target_language:
             raise ValueError("source_artifact_id and target_language are required")
 
+        # Resolve artifact to a local file; callers may pass a direct path
+        source_path = Path(source_artifact_id)
+        if not source_path.exists() or source_path.stat().st_size == 0:
+            raise FileNotFoundError(
+                f"voice_translate_source_file_not_found: {source_artifact_id!r}. "
+                "Resolve the artifact to a local path before calling translate()."
+            )
+
         client = ElevenLabsClient()
-        resp = client.request(
-            "POST",
-            "/v1/dubbing",
-            data={
-                "target_lang": target_language,
-                "mode": "automatic",
-                "watermark": "false",
-            },
-            files={
-                "file": (f"{source_artifact_id}.mp3", b"", "audio/mpeg"),
-            },
-        )
+        with source_path.open("rb") as fh:
+            resp = client.request(
+                "POST",
+                "/v1/dubbing",
+                data={
+                    "target_lang": target_language,
+                    "mode": "automatic",
+                    "watermark": "false",
+                },
+                files={
+                    "file": (source_path.name, fh, "audio/mpeg"),
+                },
+            )
         body = resp.json()
         return {
             "status": "submitted",

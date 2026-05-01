@@ -22,7 +22,13 @@ class PodcastSegment:
 class PodcastBuildRequest:
     title: str
     segments: list[PodcastSegment]
-    bgm_prompt: str | None = None
+    bgm_file_path: str | None = None
+    """Optional path to a pre-generated BGM WAV file for ducking.
+
+    When set, the mixed voice track will be ducked under this BGM using
+    :class:`PodcastDuckingService`.  Pass ``None`` to skip BGM altogether.
+    Use ``BGMGenerationService`` first if you need to generate BGM from a prompt.
+    """
     export_format: str = "mp3"
 
 
@@ -74,13 +80,13 @@ class PodcastFullProductionService:
 
         final_audio_path = Path(mix_result["output_path"])
 
-        # 4. Optional BGM ducking (only if a BGM track is provided as a file path)
-        if request.bgm_prompt and Path(request.bgm_prompt).exists():
+        # 4. Optional BGM ducking (only if a BGM track file path is provided)
+        if request.bgm_file_path and Path(request.bgm_file_path).exists():
             ducked_wav = str(work_dir / "ducked.wav")
             ducking = PodcastDuckingService()
             ducked_path = ducking.apply_ducking(
                 voice_track_path=str(final_audio_path),
-                bgm_path=request.bgm_prompt,
+                bgm_path=request.bgm_file_path,
                 output_path=ducked_wav,
             )
             final_audio_path = Path(ducked_path)

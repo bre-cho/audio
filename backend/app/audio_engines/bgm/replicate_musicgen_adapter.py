@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import os
+import re
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
 from app.services.audio_signal_validator import validate_audio_signal
+
+# Only accept output URLs from trusted Replicate CDN domains
+_TRUSTED_URL_RE = re.compile(
+    r"^https://(?:replicate\.delivery|pbxt\.replicate\.delivery|[a-z0-9\-]+\.replicate\.delivery)/",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -50,7 +57,9 @@ class ReplicateMusicGenAdapter:
             # file-like object
             audio_bytes = output.read()
         else:
-            with urllib.request.urlopen(audio_url) as resp:  # noqa: S310
+            if not _TRUSTED_URL_RE.match(audio_url):
+                raise RuntimeError(f"replicate_musicgen_untrusted_output_url: {audio_url!r}")
+            with urllib.request.urlopen(audio_url) as resp:
                 audio_bytes = resp.read()
 
         if not audio_bytes:

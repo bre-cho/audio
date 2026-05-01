@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import subprocess
+import wave
 from pathlib import Path
-from uuid import uuid4
 
 from app.audio_engines.podcast.mixdown_engine_v2 import PodcastClip, PodcastMixdownEngineV2
 from app.services.audio_decode_service import decode_to_wav
@@ -26,7 +25,6 @@ class PodcastMixdownService:
                 wav_path = decode_to_wav(entry["audio_path"])
             clips.append(PodcastClip(path=wav_path, start_sec=current_sec, gain=1.0))
             # Advance cursor by clip duration so segments play sequentially
-            import wave
             with wave.open(wav_path, "rb") as wf:
                 current_sec += wf.getnframes() / float(wf.getframerate())
 

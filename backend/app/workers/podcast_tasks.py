@@ -26,22 +26,24 @@ def produce_episode_task(
     self,
     title: str,
     segments: list[dict],
-    bgm_prompt: str | None = None,
+    bgm_file_path: str | None = None,
     export_format: str = "mp3",
 ) -> dict:
     """Full production task: TTS → mix → (optional) ducking → export.
 
     Each element of ``segments`` must have keys: ``speaker``, ``text``, ``voice_id``.
+    ``bgm_file_path`` should be a path to a pre-generated BGM WAV file; use
+    ``BGMGenerationService`` first if you need prompt-based BGM.
     """
     try:
         request = PodcastBuildRequest(
             title=title,
             segments=[PodcastSegment(**s) for s in segments],
-            bgm_prompt=bgm_prompt,
+            bgm_file_path=bgm_file_path,
             export_format=export_format,
         )
         service = PodcastFullProductionService()
-        result = asyncio.get_event_loop().run_until_complete(service.build_episode(request))
+        result = asyncio.run(service.build_episode(request))
         return {
             "status": "completed",
             "artifact_id": result.artifact_id,
