@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from app.services.sfx_generation_service import SFXPrompt
 from app.services.provider_capability_registry import default_registry
 
-router = APIRouter(prefix="/sound-effects", tags=["Sound Effects"])
+router = APIRouter(prefix="/api/sound-effects", tags=["Sound Effects"])
 
 
 @router.post("/generate")

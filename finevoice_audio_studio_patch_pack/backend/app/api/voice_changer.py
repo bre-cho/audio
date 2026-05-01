@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException
 from app.services.provider_capability_registry import default_registry
 
-router = APIRouter(prefix="/voice-changer", tags=["Voice Changer"])
+router = APIRouter(prefix="/api/voice-changer", tags=["Voice Changer"])
 
 
 class VoiceChangerRequest(BaseModel):

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AudioQAResult",
+  "type": "object",
+  "required": ["duration_sec", "rms", "peak", "clipping_detected", "silence_detected", "qa_pass"],
+  "properties": {
+    "duration_sec": {"type": "number"},
+    "rms": {"type": "number"},
+    "peak": {"type": "number"},
+    "clipping_detected": {"type": "boolean"},
+    "silence_detected": {"type": "boolean"},
+    "qa_pass": {"type": "boolean"},
+    "reason": {"type": "string"}
+  }
+}

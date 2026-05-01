@@ -8,11 +8,14 @@ from app.api import (
 	billing,
 	conversation,
 	decisions,
+	localization,
 	jobs,
 	library,
 	noise_reducer,
 	observability,
 	podcast,
+	system_capabilities,
+	transcription,
 	projects,
 	providers,
 	recovery,
@@ -20,14 +23,17 @@ from app.api import (
 	sound_effects,
 	storage_health,
 	tts,
+	bgm,
 	voice_changer,
 	voice_clone,
 	voice_design,
 	voice_enhancer,
+	voice_library,
 	voices,
 )
 api_router = APIRouter()
 api_router.include_router(audio.router, prefix='/audio', tags=['audio'])
+api_router.include_router(system_capabilities.router)
 api_router.include_router(providers.router, prefix='/providers', tags=['providers'])
 api_router.include_router(voices.router, prefix='/voices', tags=['voices'])
 api_router.include_router(tts.router, prefix='/tts', tags=['tts'])
@@ -35,10 +41,14 @@ api_router.include_router(conversation.router, prefix='/conversation', tags=['co
 api_router.include_router(voice_clone.router, prefix='/voice-clone', tags=['voice-clone'])
 api_router.include_router(voice_changer.router, tags=['voice-changer'])
 api_router.include_router(voice_design.router, tags=['voice-design'])
+api_router.include_router(voice_library.router)
 api_router.include_router(noise_reducer.router, tags=['noise-reducer'])
 api_router.include_router(voice_enhancer.router, tags=['voice-enhancer'])
 api_router.include_router(sound_effects.router, tags=['sound-effects'])
+api_router.include_router(bgm.router)
 api_router.include_router(podcast.router, tags=['podcast'])
+api_router.include_router(transcription.router)
+api_router.include_router(localization.router)
 api_router.include_router(audio_quality.router, tags=['audio-quality'])
 api_router.include_router(projects.router, prefix='/projects', tags=['projects'])
 api_router.include_router(jobs.router, prefix='/jobs', tags=['jobs'])

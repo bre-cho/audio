@@ -1,13 +1,13 @@
 from fastapi import APIRouter, HTTPException
-from app.services.sfx_generation_service import SFXPrompt
+from app.services.bgm_generation_service import BGMPrompt
 from app.services.provider_capability_registry import default_registry
 
-router = APIRouter(prefix="/sound-effects", tags=["Sound Effects"])
+router = APIRouter(prefix="/bgm", tags=["BGM"])
 
 
 @router.post("/generate")
-def generate_sfx(payload: SFXPrompt, provider: str = "sfx_provider"):
-    cap = default_registry().get(provider, "sound_effects")
+def generate_bgm(payload: BGMPrompt, provider: str = "bgm_provider"):
+    cap = default_registry().get(provider, "bgm")
     if cap.status != "ready":
         raise HTTPException(status_code=409, detail={"status": cap.status, "reason": cap.reason})
     return {"status": "queued", "prompt": payload.prompt}

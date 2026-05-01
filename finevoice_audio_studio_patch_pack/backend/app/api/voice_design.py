@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.models.voice_recipe import VoiceRecipeCreate
 from app.services.voice_design_service import VoiceDesignService
 
-router = APIRouter(prefix="/voice-design", tags=["Voice Design"])
+router = APIRouter(prefix="/api/voice-design", tags=["Voice Design"])
 _service = VoiceDesignService()
 
 
