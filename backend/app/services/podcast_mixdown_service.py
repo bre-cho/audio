@@ -25,8 +25,13 @@ class PodcastMixdownService:
                 wav_path = decode_to_wav(entry["audio_path"])
             clips.append(PodcastClip(path=wav_path, start_sec=current_sec, gain=1.0))
             # Advance cursor by clip duration so segments play sequentially
-            with wave.open(wav_path, "rb") as wf:
-                current_sec += wf.getnframes() / float(wf.getframerate())
+            try:
+                with wave.open(wav_path, "rb") as wf:
+                    current_sec += wf.getnframes() / float(wf.getframerate())
+            except Exception as exc:
+                raise RuntimeError(
+                    f"podcast_mixdown_cannot_read_segment_wav:{wav_path}:{exc}"
+                ) from exc
 
         engine = PodcastMixdownEngineV2()
         mixed_path = engine.mix_wav_clips(clips, output_path)

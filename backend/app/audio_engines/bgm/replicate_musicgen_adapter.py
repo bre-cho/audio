@@ -59,7 +59,7 @@ class ReplicateMusicGenAdapter:
         else:
             if not _TRUSTED_URL_RE.match(audio_url):
                 raise RuntimeError(f"replicate_musicgen_untrusted_output_url: {audio_url!r}")
-            with urllib.request.urlopen(audio_url) as resp:
+            with urllib.request.urlopen(audio_url, timeout=120) as resp:
                 audio_bytes = resp.read()
 
         if not audio_bytes:

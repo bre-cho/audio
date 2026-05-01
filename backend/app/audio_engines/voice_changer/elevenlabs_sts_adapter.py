@@ -12,12 +12,21 @@ from app.services.audio_signal_validator import validate_audio_signal
 # Allowed audio file extensions for input
 _ALLOWED_INPUT_SUFFIXES = {".mp3", ".wav", ".ogg", ".flac", ".m4a", ".webm"}
 # voice_id must be alphanumeric + hyphens only (ElevenLabs format)
-_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
+
+def _artifacts_root() -> Path:
+    """Return the resolved artifacts root directory."""
+    return Path(os.getenv("ARTIFACT_ROOT", "/artifacts")).resolve()
 
 
 def _validate_input_path(input_path: str) -> Path:
-    """Resolve and validate the input file path, preventing path traversal."""
+    """Resolve the input path and ensure it is inside the artifacts root."""
+    root = _artifacts_root()
     p = Path(input_path).resolve()
+    # Enforce that the path is inside the allowed artifacts directory
+    if root not in p.parents and p != root:
+        raise ValueError(f"voice_changer_input_path_outside_artifacts_root: {p.name}")
     if not p.exists():
         raise FileNotFoundError(f"voice_changer_input_not_found: {p.name}")
     if p.stat().st_size == 0:
@@ -28,8 +37,11 @@ def _validate_input_path(input_path: str) -> Path:
 
 
 def _validate_output_path(output_path: str) -> Path:
-    """Resolve and prepare the output path, preventing path traversal."""
+    """Resolve the output path and ensure it is inside the artifacts root."""
+    root = _artifacts_root()
     p = Path(output_path).resolve()
+    if root not in p.parents and p != root:
+        raise ValueError(f"voice_changer_output_path_outside_artifacts_root: {p.name}")
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -46,6 +58,7 @@ class ElevenLabsVoiceChangerAdapter:
     """Voice conversion backed by ElevenLabs speech-to-speech endpoint.
 
     Requires ``ELEVENLABS_API_KEY`` and ``VOICE_CONVERSION_PROVIDER=elevenlabs``.
+    Input and output paths must reside within the configured ``ARTIFACT_ROOT``.
     """
 
     provider_name = "elevenlabs"

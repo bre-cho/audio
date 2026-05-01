@@ -43,7 +43,11 @@ def produce_episode_task(
             export_format=export_format,
         )
         service = PodcastFullProductionService()
-        result = asyncio.run(service.build_episode(request))
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(service.build_episode(request))
+        finally:
+            loop.close()
         return {
             "status": "completed",
             "artifact_id": result.artifact_id,

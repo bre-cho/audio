@@ -14,8 +14,11 @@ from app.core.rate_limit import rate_limit
 def create_app() -> FastAPI:
     app = FastAPI(title='API He thong AI Am thanh', version='0.1.0')
 
-    # CORS — tighten origins in production via CORS_ORIGINS env var
-    origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
+    # CORS — in production set CORS_ORIGINS to a comma-separated list of
+    # allowed origins (e.g. "https://app.example.com").  Defaults to '' which
+    # blocks all cross-origin requests so the API is safe out of the box.
+    raw_origins = os.getenv("CORS_ORIGINS", "").strip()
+    origins = [o.strip() for o in raw_origins.split(",") if o.strip()] if raw_origins else []
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,

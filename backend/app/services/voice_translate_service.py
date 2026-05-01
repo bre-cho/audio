@@ -38,8 +38,15 @@ class VoiceTranslateService:
         if not source_artifact_id or not target_language:
             raise ValueError("source_artifact_id and target_language are required")
 
-        # Resolve artifact to a local file; callers may pass a direct path
-        source_path = Path(source_artifact_id)
+        # Resolve artifact to a local file within the artifacts root; callers
+        # should pass a path already scoped to ARTIFACT_ROOT.
+        artifacts_root = Path(os.getenv("ARTIFACT_ROOT", "/artifacts")).resolve()
+        source_path = Path(source_artifact_id).resolve()
+        if artifacts_root not in source_path.parents and source_path != artifacts_root:
+            raise ValueError(
+                f"voice_translate_source_outside_artifacts_root: {source_path.name}. "
+                "Provide a path within ARTIFACT_ROOT."
+            )
         if not source_path.exists() or source_path.stat().st_size == 0:
             raise FileNotFoundError(
                 f"voice_translate_source_file_not_found: {source_artifact_id!r}. "

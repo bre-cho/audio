@@ -45,7 +45,7 @@ class PodcastDuckingService:
             "-ac", "1", "-ar", "44100",
             output_path,
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if proc.returncode != 0:
             raise RuntimeError(f"podcast_ducking_ffmpeg_failed:{proc.stderr[-500:]}")
         return output_path
