@@ -1,3 +1,5 @@
+"""Deprecated: use ProviderRegistryV4-based provider selection instead."""
+
 from __future__ import annotations
 
 from app.providers.elevenlabs import ElevenLabsProvider

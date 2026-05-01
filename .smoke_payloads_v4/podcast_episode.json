@@ -1,0 +1,9 @@
+{
+  "title": "AI Audio Studio Production Test",
+  "segments": [
+    {"speaker": "host", "voice_id": "voice_host", "text": "Welcome to the production smoke test."},
+    {"speaker": "guest", "voice_id": "voice_guest", "text": "This segment validates multi speaker orchestration."}
+  ],
+  "bgm_prompt": "soft technology podcast intro",
+  "export_format": "mp3"
+}

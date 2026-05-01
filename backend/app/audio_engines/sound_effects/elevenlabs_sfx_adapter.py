@@ -1,3 +1,5 @@
+"""Deprecated scaffold: enable only through single-source ProviderRegistryV4 wiring."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

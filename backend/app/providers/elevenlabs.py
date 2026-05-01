@@ -1,3 +1,8 @@
+"""Deprecated: legacy ElevenLabs adapter kept for compatibility wrappers.
+
+V4 rule: provider resolution must go through provider registry single-source flow.
+"""
+
 from __future__ import annotations
 
 import logging
