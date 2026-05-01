@@ -37,23 +37,28 @@ class TTSService:
         idempotency_key: str | None = None,
     ) -> JobStatusOut:
         estimate = CreditPolicy.estimate_tts(len(task.text or ""))
-        job, created = self.jobs.create_or_get(
-            user_id=self.default_user_id,
-            job_type='tts',
-            workflow_type=task.workflow_type.value,
-            request_json=task.request_json,
-            project_id=payload.project_id,
-            voice_id=payload.voice_id,
-            idempotency_key=idempotency_key,
-        )
-        if created:
-            self.credits.add_event(
+        try:
+            job, created = self.jobs.create_or_get(
                 user_id=self.default_user_id,
-                delta_credits=-estimate.estimated_credits,
-                event_type='reserve',
-                note='tts generate reserve',
+                job_type='tts',
+                workflow_type=task.workflow_type.value,
+                request_json=task.request_json,
+                project_id=payload.project_id,
+                voice_id=payload.voice_id,
+                idempotency_key=idempotency_key,
             )
-            enqueue_tts_job(str(job.id))
+            if created:
+                self.credits.add_event(
+                    user_id=self.default_user_id,
+                    delta_credits=-estimate.estimated_credits,
+                    event_type='reserve',
+                    note='tts generate reserve',
+                )
+                # Enqueue only after both job and credit event are committed
+                enqueue_tts_job(str(job.id))
+        except Exception:
+            self.db.rollback()
+            raise
         return JobStatusOut.model_validate(job)
 
     def submit_preview_task(
@@ -62,14 +67,18 @@ class TTSService:
         payload: TTSPreviewRequest,
         idempotency_key: str | None = None,
     ) -> JobStatusOut:
-        job, created = self.jobs.create_or_get(
-            user_id=self.default_user_id,
-            job_type='tts_preview',
-            workflow_type=task.workflow_type.value,
-            request_json=task.request_json,
-            voice_id=payload.voice_id,
-            idempotency_key=idempotency_key,
-        )
-        if created:
-            enqueue_tts_job(str(job.id))
+        try:
+            job, created = self.jobs.create_or_get(
+                user_id=self.default_user_id,
+                job_type='tts_preview',
+                workflow_type=task.workflow_type.value,
+                request_json=task.request_json,
+                voice_id=payload.voice_id,
+                idempotency_key=idempotency_key,
+            )
+            if created:
+                enqueue_tts_job(str(job.id))
+        except Exception:
+            self.db.rollback()
+            raise
         return JobStatusOut.model_validate(job)

@@ -25,20 +25,24 @@ class VoiceCloneService:
         current_user_id = user_id or uuid.UUID('00000000-0000-0000-0000-000000000001')
         if not payload.consent_confirmed:
             raise ValueError('consent_confirmed phai la true')
-        job, created = self.jobs.create_or_get(
-            user_id=current_user_id,
-            job_type='clone',
-            request_json=payload.model_dump(mode='json'),
-            idempotency_key=idempotency_key,
-        )
-        if created:
-            self.credits.add_event(
+        try:
+            job, created = self.jobs.create_or_get(
                 user_id=current_user_id,
-                delta_credits=-1000,
-                event_type='reserve',
-                note='giu cho clone giong noi',
+                job_type='clone',
+                request_json=payload.model_dump(mode='json'),
+                idempotency_key=idempotency_key,
             )
-            enqueue_clone_job(str(job.id))
+            if created:
+                self.credits.add_event(
+                    user_id=current_user_id,
+                    delta_credits=-1000,
+                    event_type='reserve',
+                    note='giu cho clone giong noi',
+                )
+                enqueue_clone_job(str(job.id))
+        except Exception:
+            self.db.rollback()
+            raise
         return JobStatusOut.model_validate(job)
 
     def submit_preview(self, voice_id: UUID, payload: VoiceClonePreviewRequest, user_id: UUID | None = None) -> JobStatusOut:
@@ -75,18 +79,22 @@ class VoiceCloneService:
         idempotency_key: str | None = None,
     ) -> JobStatusOut:
         current_user_id = user_id or uuid.UUID('00000000-0000-0000-0000-000000000001')
-        job, created = self.jobs.create_or_get(
-            user_id=current_user_id,
-            job_type='voice_shift',
-            request_json={'sample_file_id': sample_file_id, 'pitch_semitones': pitch_semitones},
-            idempotency_key=idempotency_key,
-        )
-        if created:
-            self.credits.add_event(
+        try:
+            job, created = self.jobs.create_or_get(
                 user_id=current_user_id,
-                delta_credits=-500,
-                event_type='reserve',
-                note='giu cho shift voice',
+                job_type='voice_shift',
+                request_json={'sample_file_id': sample_file_id, 'pitch_semitones': pitch_semitones},
+                idempotency_key=idempotency_key,
             )
-            enqueue_voice_shift_job(str(job.id))
+            if created:
+                self.credits.add_event(
+                    user_id=current_user_id,
+                    delta_credits=-500,
+                    event_type='reserve',
+                    note='giu cho shift voice',
+                )
+                enqueue_voice_shift_job(str(job.id))
+        except Exception:
+            self.db.rollback()
+            raise
         return JobStatusOut.model_validate(job)

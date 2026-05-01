@@ -77,16 +77,90 @@ class VoiceTranslateService:
         }
 
     def translate_transcript(self, transcript: dict, target_language: str) -> dict:
-        """Translate a text transcript dict (legacy interface)."""
+        """Translate a text transcript dict to another language.
+
+        Dispatches to the provider specified by ``TRANSLATION_PROVIDER``
+        (independent of ``VOICE_TRANSLATION_PROVIDER`` which handles audio dubbing).
+
+        Supported providers:
+        - ``openai`` — GPT-4o-mini for fast, high-quality translation.
+        - ``deepl`` — DeepL API (requires DEEPL_API_KEY).
+        """
         text = transcript.get("text") or ""
         if not text:
             raise ValueError("transcript.text is required")
-        provider = os.getenv("VOICE_TRANSLATION_PROVIDER", "disabled").strip().lower()
+
+        provider = os.getenv("TRANSLATION_PROVIDER", "disabled").strip().lower()
         if provider in {"", "disabled", "none"}:
             raise RuntimeError(
-                "voice_translation_provider_disabled: set VOICE_TRANSLATION_PROVIDER"
+                "text_translation_provider_disabled: set TRANSLATION_PROVIDER=openai or deepl"
             )
+
+        if provider == "openai":
+            return self._translate_openai(text, target_language)
+
+        if provider == "deepl":
+            return self._translate_deepl(text, target_language)
+
         raise RuntimeError(
-            "translate_transcript requires a text-translation provider integration (e.g. OpenAI, DeepL). "
-            "Set VOICE_TRANSLATION_PROVIDER and implement the chosen provider adapter."
+            f"unsupported_translation_provider:{provider} — "
+            "supported values: openai, deepl"
         )
+
+    def _translate_openai(self, text: str, target_language: str) -> dict:
+        import openai  # type: ignore[import]
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("translation_openai_missing_OPENAI_API_KEY")
+        client = openai.OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=os.getenv("OPENAI_TRANSLATION_MODEL", "gpt-4o-mini"),
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        f"You are a professional translator. Translate the user's text "
+                        f"to {target_language}. Return only the translated text without "
+                        "any explanation or formatting."
+                    ),
+                },
+                {"role": "user", "content": text},
+            ],
+            temperature=0.2,
+        )
+        translated = response.choices[0].message.content or ""
+        return {
+            "status": "completed",
+            "provider": "openai",
+            "original_text": text,
+            "translated_text": translated,
+            "target_language": target_language,
+            "model": response.model,
+        }
+
+    def _translate_deepl(self, text: str, target_language: str) -> dict:
+        import httpx
+        api_key = os.getenv("DEEPL_API_KEY")
+        if not api_key:
+            raise RuntimeError("translation_deepl_missing_DEEPL_API_KEY")
+        base_url = os.getenv("DEEPL_API_URL", "https://api-free.deepl.com/v2")
+        response = httpx.post(
+            f"{base_url}/translate",
+            headers={"Authorization": f"DeepL-Auth-Key {api_key}"},
+            data={"text": text, "target_lang": target_language.upper()},
+            timeout=30.0,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"deepl_translation_failed:{response.status_code}:{response.text[:300]}"
+            )
+        body = response.json()
+        translated = body.get("translations", [{}])[0].get("text", "")
+        return {
+            "status": "completed",
+            "provider": "deepl",
+            "original_text": text,
+            "translated_text": translated,
+            "target_language": target_language,
+            "detected_source_language": body.get("translations", [{}])[0].get("detected_source_language"),
+        }
