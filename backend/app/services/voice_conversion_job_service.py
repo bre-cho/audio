@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,7 +16,7 @@ class VoiceConversionJobService:
                 "input_path is required: resolve the artifact to a local file path before calling convert()"
             )
         output_path = payload.get("output_path") or str(
-            Path("artifacts/voice_changer") / f"{uuid4().hex}.wav"
+            Path(os.getenv("ARTIFACT_ROOT", "/artifacts")) / "voice_changer" / f"{uuid4().hex}.wav"
         )
         adapter = load_provider_adapter("voice_changer")
         result = adapter.convert(

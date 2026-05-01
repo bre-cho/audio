@@ -9,9 +9,9 @@ from uuid import uuid4
 
 from app.services.audio_signal_validator import validate_audio_signal
 
-# Only accept output URLs from trusted Replicate CDN domains
+# Only accept output URLs from Replicate's official CDN domains
 _TRUSTED_URL_RE = re.compile(
-    r"^https://(?:replicate\.delivery|pbxt\.replicate\.delivery|[a-z0-9\-]+\.replicate\.delivery)/",
+    r"^https://(?:replicate\.delivery|pbxt\.replicate\.delivery)/",
     re.IGNORECASE,
 )
 
@@ -59,7 +59,8 @@ class ReplicateMusicGenAdapter:
         else:
             if not _TRUSTED_URL_RE.match(audio_url):
                 raise RuntimeError(f"replicate_musicgen_untrusted_output_url: {audio_url!r}")
-            with urllib.request.urlopen(audio_url, timeout=120) as resp:
+            download_timeout = int(os.getenv("REPLICATE_DOWNLOAD_TIMEOUT", "120"))
+            with urllib.request.urlopen(audio_url, timeout=download_timeout) as resp:
                 audio_bytes = resp.read()
 
         if not audio_bytes:

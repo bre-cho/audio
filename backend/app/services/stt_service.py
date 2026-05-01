@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import mimetypes
 import os
+from pathlib import Path
+
+from app.providers.elevenlabs import ElevenLabsProvider
+from app.providers.elevenlabs.schemas import STTRequest
 
 
 class STTService:
@@ -14,10 +19,6 @@ class STTService:
             result = WhisperAdapter(model_name=model_name).transcribe(audio_path)
             return result.dict()
         if provider == "elevenlabs":
-            from app.providers.elevenlabs import ElevenLabsProvider
-            from app.providers.elevenlabs.schemas import STTRequest
-            import mimetypes
-            from pathlib import Path
             p = Path(audio_path)
             if not p.exists() or p.stat().st_size == 0:
                 raise ValueError("audio_file_missing_or_empty")
