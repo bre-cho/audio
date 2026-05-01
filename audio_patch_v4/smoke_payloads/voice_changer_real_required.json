@@ -1,6 +1,0 @@
-{
-  "input_artifact_id": "aud_input_123",
-  "target_voice_id": "voice_target_456",
-  "provider": "rvc",
-  "preserve_formant": true
-}

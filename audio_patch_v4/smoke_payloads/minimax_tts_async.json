@@ -1,6 +1,0 @@
-{
-  "text": "This is a longer async TTS smoke payload. Replace this with a long article or podcast script during staging verification.",
-  "voice_id": "male-qn-qingse",
-  "model": "speech-2.8-hd",
-  "audio_format": "mp3"
-}

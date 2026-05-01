@@ -1,6 +1,0 @@
-{
-  "provider": "elevenlabs",
-  "target_voice_id": "REPLACE_WITH_REAL_VOICE_ID",
-  "model_id": "eleven_multilingual_sts_v2",
-  "output_format": "mp3_44100_128"
-}
