@@ -26,6 +26,7 @@ from app.api import (
 	bgm,
 	voice_changer,
 	voice_clone,
+	voice_clone_lifecycle,
 	voice_design,
 	voice_enhancer,
 	voice_library,
@@ -48,6 +49,7 @@ api_router.include_router(voices.router, prefix='/voices', tags=['voices'])
 api_router.include_router(tts.router, prefix='/tts', tags=['tts'])
 api_router.include_router(conversation.router, prefix='/conversation', tags=['conversation'])
 api_router.include_router(voice_clone.router, prefix='/voice-clone', tags=['voice-clone'])
+api_router.include_router(voice_clone_lifecycle.router)
 api_router.include_router(voice_changer.router, tags=['voice-changer'])
 api_router.include_router(voice_design.router, tags=['voice-design'])
 api_router.include_router(voice_library.router)

@@ -22,6 +22,7 @@ class CapabilityState:
 CAPABILITY_ENV = {
     "tts": ("TTS_PROVIDER", "ELEVENLABS_API_KEY"),
     "voice_clone": ("VOICE_CLONE_PROVIDER", "ELEVENLABS_API_KEY"),
+    "voice_translation": ("VOICE_TRANSLATION_PROVIDER", None),
     "voice_changer": ("VOICE_CONVERSION_PROVIDER", None),
     "stt": ("STT_PROVIDER", None),
     "sound_effects": ("SFX_PROVIDER", None),
