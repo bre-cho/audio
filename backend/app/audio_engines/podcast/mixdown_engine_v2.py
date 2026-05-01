@@ -54,6 +54,8 @@ class PodcastMixdownEngineV2:
 
         for clip in clips:
             src = clip.path
+            needs_resample = False
+            rate = 0
             try:
                 with wave.open(src, "rb") as wf:
                     width = wf.getsampwidth()
@@ -62,7 +64,6 @@ class PodcastMixdownEngineV2:
             except Exception:
                 # Non-WAV or unreadable — always resample
                 needs_resample = True
-                rate = 0
 
             if needs_resample:
                 src = _resample_to_wav(src, sample_rate)

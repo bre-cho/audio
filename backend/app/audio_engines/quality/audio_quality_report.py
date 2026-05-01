@@ -62,11 +62,11 @@ def _measure_snr_wav(path: str) -> float | None:
             return None
         count = len(frames) // 2
         samples = struct.unpack(f"<{count}h", frames[: count * 2])
-        # Mono-fold (average channels)
+        # Mono-fold: average interleaved channel samples
         if channels > 1:
             mono = [
-                sum(samples[i + ch] for ch in range(channels)) // channels
-                for i in range(0, len(samples), channels)
+                sum(samples[i * channels + ch] for ch in range(channels)) // channels
+                for i in range(len(samples) // channels)
             ]
         else:
             mono = list(samples)

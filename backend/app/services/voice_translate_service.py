@@ -90,7 +90,11 @@ class VoiceTranslateService:
         if not text:
             raise ValueError("transcript.text is required")
 
-        provider = os.getenv("TRANSLATION_PROVIDER", "disabled").strip().lower()
+        provider = (
+            os.getenv("TRANSLATION_PROVIDER")
+            or os.getenv("VOICE_TRANSLATION_PROVIDER")  # backward-compat alias
+            or "disabled"
+        ).strip().lower()
         if provider in {"", "disabled", "none"}:
             raise RuntimeError(
                 "text_translation_provider_disabled: set TRANSLATION_PROVIDER=openai or deepl"

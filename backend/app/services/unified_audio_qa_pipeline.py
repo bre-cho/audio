@@ -32,9 +32,9 @@ def _compute_rms_peak(frames: bytes, sample_width: int) -> tuple[float, int]:
         peak_val = max(abs(s) for s in samples)
         rms_val = math.sqrt(sum(s * s for s in samples) / len(samples))
     elif sample_width == 3:
-        # 24-bit PCM — unpack manually
+        # 24-bit PCM — unpack complete 3-byte samples only
         samples = []
-        for i in range(0, len(frames) - 2, 3):
+        for i in range(0, (len(frames) // 3) * 3, 3):
             val = int.from_bytes(frames[i : i + 3], "little", signed=True)
             samples.append(val)
         if not samples:

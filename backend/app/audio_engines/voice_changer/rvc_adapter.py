@@ -64,6 +64,10 @@ class RVCVoiceConversionAdapter:
                 "rvc_not_configured: set RVC_MODEL_DIR and RVC_SCRIPT_PATH to enable "
                 "VOICE_CONVERSION_PROVIDER=rvc"
             )
+        if not Path(rvc_script).exists():
+            raise RuntimeError(
+                f"rvc_script_not_found: RVC_SCRIPT_PATH={rvc_script!r} does not exist"
+            )
 
         model_path = self._resolve_model(model_dir, target_voice_id)
         index_path = self._find_index(model_dir, target_voice_id)
