@@ -9,6 +9,7 @@ from app.api.deps import get_db
 from app.core.config import settings
 from app.models.audio_job import AudioJob
 from app.providers.capability_registry import CAPABILITIES
+from app.providers.minimax import MinimaxProvider
 from app.schemas.provider import ProviderOut
 
 router = APIRouter()
@@ -80,7 +81,14 @@ def provider_health() -> dict:
     if not minimax_key:
         result['minimax'] = {'status': 'no_key', 'detail': 'MINIMAX_API_KEY not set'}
     else:
-        result['minimax'] = {'status': 'ok', 'detail': 'key present (connectivity not verified)'}
+        try:
+            health = MinimaxProvider()._provider.health_check()
+            if health.ok:
+                result['minimax'] = {'status': 'ok', 'detail': 'authenticated'}
+            else:
+                result['minimax'] = {'status': 'error', 'detail': health.reason or 'health_check_failed'}
+        except Exception as exc:
+            result['minimax'] = {'status': 'error', 'detail': str(exc)}
 
     # --- Internal GenVoice ---
     result['internal_genvoice'] = {'status': 'placeholder', 'detail': 'no real model; dev/test only'}

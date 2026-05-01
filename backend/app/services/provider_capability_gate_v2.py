@@ -4,6 +4,9 @@ import os
 from dataclasses import dataclass, asdict
 from typing import Literal
 
+from app.core.config import settings
+from app.services.minimax_capability_service import get_minimax_capabilities
+
 CapabilityStatus = Literal["ready", "partial", "disabled", "blocked", "planned"]
 
 
@@ -41,6 +44,13 @@ def get_capability_state(capability: str) -> CapabilityState:
     provider = os.getenv(provider_env, "disabled").strip()
     if provider.lower() in DISABLED_VALUES:
         return CapabilityState(capability, "disabled", provider, f"{provider_env}_disabled")
+    if provider == "minimax":
+        minimax_states = {
+            item.capability: item for item in get_minimax_capabilities(settings)
+        }
+        state = minimax_states.get(capability)
+        if state:
+            return CapabilityState(capability, state.status, provider, state.reason, True)
     if key_env and not os.getenv(key_env):
         return CapabilityState(capability, "blocked", provider, f"missing_{key_env.lower()}", True)
     return CapabilityState(capability, "ready", provider, "ready", bool(key_env))

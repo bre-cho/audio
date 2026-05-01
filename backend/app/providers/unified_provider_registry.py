@@ -15,6 +15,8 @@ class ProviderBinding:
 SUPPORTED_BINDINGS: dict[tuple[str, str], ProviderBinding] = {
     ("tts", "elevenlabs"): ProviderBinding("tts", "elevenlabs", "app.providers.elevenlabs_real.ElevenLabsRealProvider", "ELEVENLABS_API_KEY"),
     ("voice_clone", "elevenlabs"): ProviderBinding("voice_clone", "elevenlabs", "app.providers.elevenlabs_real.ElevenLabsRealProvider", "ELEVENLABS_API_KEY"),
+    ("tts", "minimax"): ProviderBinding("tts", "minimax", "app.providers.minimax.MinimaxProvider", "MINIMAX_API_KEY"),
+    ("voice_clone", "minimax"): ProviderBinding("voice_clone", "minimax", "app.providers.minimax.MinimaxProvider", "MINIMAX_API_KEY"),
     ("stt", "whisper"): ProviderBinding("stt", "whisper", "app.audio_engines.stt.whisper_adapter.WhisperAdapter", None),
     ("voice_changer", "rvc"): ProviderBinding("voice_changer", "rvc", "app.audio_engines.voice_changer.rvc_adapter.RVCVoiceConversionAdapter", None),
     ("voice_changer", "openvoice"): ProviderBinding("voice_changer", "openvoice", "app.audio_engines.voice_changer.openvoice_adapter.OpenVoiceConversionAdapter", None),

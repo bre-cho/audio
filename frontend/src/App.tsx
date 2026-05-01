@@ -30,6 +30,7 @@ import {
   Filter
 } from 'lucide-react';
 import { api } from './api';
+import { ElevenLabsProviderCard } from './components/audio/ElevenLabsProviderCard';
 import type { AudioCapabilitiesOut, JobStatusOut, ProjectOut, ProviderCode, SettingsState, VoiceOut, Screen } from './types';
 
 const fallbackVoices: VoiceOut[] = [
@@ -324,6 +325,11 @@ export default function App() {
       <Sidebar screen={screen} setScreen={setScreen} />
       <main className="main-area">
         <TopBar screen={screen} />
+        {screen === 'tts' && provider === 'elevenlabs' && (
+          <section className="workspace" style={{ paddingBottom: 0 }}>
+            <ElevenLabsProviderCard />
+          </section>
+        )}
         {screen === 'tts' && <TextWorkspace busy={busy} credits={credits} onSubmit={(text) => submitText(text, 'tts')} />}
         {screen === 'conversation' && <ConversationWorkspace busy={busy} credits={credits} onSubmit={(text) => submitText(text, 'conversation')} />}
         {screen === 'voiceChanger' && <VoiceChangerWorkspace />}
@@ -1186,6 +1192,9 @@ function GovernanceWorkspace() {
   return (
     <section className="workspace history-page">
       <h1>Governance Dashboard</h1>
+      <div style={{ marginBottom: '1rem' }}>
+        <ElevenLabsProviderCard />
+      </div>
       <div className="history-list">
         <article className="history-card">
           <span>Provider Health</span>

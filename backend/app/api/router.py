@@ -35,6 +35,8 @@ from app.api import (
 )
 from app.api import (
 	audio_quality_v2,
+	elevenlabs_provider,
+	minimax_provider,
 	podcast_v2,
 	runtime_truth,
 	sfx_bgm_v2,
@@ -82,3 +84,5 @@ api_router.include_router(podcast_v2.router, prefix='/podcast-v2', tags=['podcas
 api_router.include_router(voice_changer_v2.router, prefix='/voice-changer-v2', tags=['voice-changer'])
 api_router.include_router(sfx_bgm_v2.router, prefix='/sfx-bgm-v2', tags=['sfx-bgm'])
 api_router.include_router(audio_quality_v2.router, prefix='/audio-quality-v2', tags=['audio-quality'])
+api_router.include_router(elevenlabs_provider.router)
+api_router.include_router(minimax_provider.router)

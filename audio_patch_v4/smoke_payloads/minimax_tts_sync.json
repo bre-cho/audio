@@ -1,0 +1,9 @@
+{
+  "text": "Hello, this is a Minimax TTS production smoke test.",
+  "voice_id": "male-qn-qingse",
+  "model": "speech-2.8-hd",
+  "audio_format": "mp3",
+  "speed": 1.0,
+  "volume": 1.0,
+  "pitch": 0
+}

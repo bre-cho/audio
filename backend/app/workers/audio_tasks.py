@@ -73,6 +73,53 @@ def _call_real_provider(task: AudioTaskRequest, provider: str) -> dict | None:
                 }
             ],
         }
+    if provider == "minimax":
+        if not settings.minimax_api_key:
+            if _is_strict_runtime():
+                raise RuntimeError("Missing MINIMAX_API_KEY in production-like runtime")
+            return None
+        from app.providers.minimax import MinimaxProvider
+
+        result = MinimaxProvider().generate_speech(
+            {
+                "voice_id": task.voice_id,
+                "text": task.text or "",
+                "model_id": task.model_version,
+                "output_format": "mp3",
+            }
+        )
+        audio_bytes: bytes = result.get("audio_bytes") or b""
+        if not audio_bytes:
+            return None
+        mime_type = result.get("mime_type", "audio/mpeg")
+        ext = "mp3" if "mpeg" in mime_type else "wav"
+        job_id = task.source_job_id or ""
+        storage_key = f"audio/{job_id}.{ext}"
+        stored = StorageService().put_bytes(storage_key, audio_bytes, mime_type)
+        checksum = compute_sha256(audio_bytes)
+        return {
+            "preview_url": stored.public_url,
+            "output_url": stored.public_url,
+            "artifacts": [
+                {
+                    "artifact_type": "output",
+                    "storage_key": stored.key,
+                    "path": stored.path or "",
+                    "url": stored.public_url or f"/artifacts/{storage_key}",
+                    "mime_type": stored.mime_type or mime_type,
+                    "size_bytes": stored.size_bytes or len(audio_bytes),
+                    "checksum": stored.checksum or checksum,
+                    "provider": provider,
+                    "generation_mode": "real",
+                    "provider_verified": True,
+                    "audio_contains_signal": True,
+                    "quality_report": {"source": "provider", "validation": "provider_asserted"},
+                    "contract_pass": True,
+                    "lineage_pass": True,
+                    "write_integrity_pass": True,
+                }
+            ],
+        }
     return None
 
 

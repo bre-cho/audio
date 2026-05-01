@@ -1,6 +1,8 @@
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional
 
+from app.core.config import settings
+
 
 @dataclass(frozen=True)
 class ProviderCapability:
@@ -51,7 +53,12 @@ def default_registry() -> ProviderCapabilityRegistry:
     reg = ProviderCapabilityRegistry()
     reg.register("elevenlabs", "tts", "ready")
     reg.register("elevenlabs", "voice_clone", "blocked", "clone_upload_polling_not_wired")
-    reg.register("minimax", "tts", "blocked", "provider_not_implemented")
+    if settings.minimax_api_key and settings.minimax_enable_tts:
+        reg.register("minimax", "tts", "degraded", "configured_needs_live_health_check")
+    elif settings.minimax_api_key:
+        reg.register("minimax", "tts", "blocked", "disabled_by_config")
+    else:
+        reg.register("minimax", "tts", "blocked", "missing_api_key")
     reg.register("internal_genvoice", "tts", "blocked", "placeholder_provider")
     reg.register("local_dsp", "voice_changer", "degraded", "pitch_shift_only")
     reg.register("local_dsp", "noise_reduction", "blocked", "rnnoise_or_demucs_not_wired")

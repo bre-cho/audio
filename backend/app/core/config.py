@@ -28,12 +28,27 @@ class Settings(BaseSettings):
     default_user_id: str = '00000000-0000-0000-0000-000000000001'
     elevenlabs_api_key: str | None = None
     minimax_api_key: str | None = None
+    minimax_base_url: str = 'https://api.minimax.io'
+    minimax_group_id: str | None = None
+    minimax_default_tts_model: str = 'speech-2.8-hd'
+    minimax_default_voice_id: str = 'male-qn-qingse'
+    minimax_timeout_seconds: float = 60.0
+    minimax_connect_timeout_seconds: float = 10.0
+    minimax_enable_tts: bool = True
+    minimax_enable_async_tts: bool = True
+    minimax_enable_voice_clone: bool = False
+    minimax_enable_voice_design: bool = False
+    minimax_enable_voice_management: bool = True
     provider_callback_token: str | None = None
     default_provider: str = 'elevenlabs'
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
 
 settings = Settings()
+
+
+def get_settings() -> Settings:
+    return settings
 
 ARTIFACT_ROOT = os.getenv("ARTIFACT_ROOT", "/artifacts")
 AUDIO_ARTIFACT_DIR = os.getenv("AUDIO_ARTIFACT_DIR", f"{ARTIFACT_ROOT}/audio")
