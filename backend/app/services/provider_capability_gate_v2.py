@@ -28,10 +28,20 @@ CAPABILITY_ENV = {
     "voice_translation": ("VOICE_TRANSLATION_PROVIDER", None),
     "voice_changer": ("VOICE_CONVERSION_PROVIDER", None),
     "stt": ("STT_PROVIDER", None),
-    "sound_effects": ("SFX_PROVIDER", None),
-    "bgm": ("BGM_PROVIDER", None),
+    "sound_effects": ("SFX_PROVIDER", "ELEVENLABS_API_KEY"),
+    "bgm": ("BGM_PROVIDER", "REPLICATE_API_TOKEN"),
     "podcast": ("PODCAST_PROVIDER", None),
     "audio_quality": ("AUDIO_QA_PROVIDER", None),
+}
+
+# Providers that require an API key per capability
+_PROVIDER_KEY_REQUIREMENTS: dict[tuple[str, str], str] = {
+    ("voice_changer", "elevenlabs"): "ELEVENLABS_API_KEY",
+    ("stt", "elevenlabs"): "ELEVENLABS_API_KEY",
+    ("stt", "whisper"): "",  # no key needed
+    ("voice_changer", "rvc"): "",
+    ("voice_changer", "openvoice"): "",
+    ("bgm", "replicate_musicgen"): "REPLICATE_API_TOKEN",
 }
 
 DISABLED_VALUES = {"", "disabled", "none", "planned", "stub", "mock", "placeholder"}
@@ -51,9 +61,13 @@ def get_capability_state(capability: str) -> CapabilityState:
         state = minimax_states.get(capability)
         if state:
             return CapabilityState(capability, state.status, provider, state.reason, True)
-    if key_env and not os.getenv(key_env):
-        return CapabilityState(capability, "blocked", provider, f"missing_{key_env.lower()}", True)
-    return CapabilityState(capability, "ready", provider, "ready", bool(key_env))
+    # Resolve API key requirement: per-provider override takes precedence over
+    # the capability-level default.
+    per_provider_key = _PROVIDER_KEY_REQUIREMENTS.get((capability, provider.lower()))
+    resolved_key_env = per_provider_key if per_provider_key is not None else key_env
+    if resolved_key_env and not os.getenv(resolved_key_env):
+        return CapabilityState(capability, "blocked", provider, f"missing_{resolved_key_env.lower()}", True)
+    return CapabilityState(capability, "ready", provider, "ready", bool(resolved_key_env))
 
 
 def capability_matrix() -> dict[str, dict]:

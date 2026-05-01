@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.core.rate_limit import rate_limit
 from app.services.feature_execution_guard import assert_capability_ready, not_implemented
 from app.services.voice_conversion_job_service import VoiceConversionJobService
 
@@ -14,7 +15,10 @@ class VoiceChangerRequest(BaseModel):
 
 
 @router.post("/convert")
-def convert_voice(payload: VoiceChangerRequest):
+def convert_voice(
+    payload: VoiceChangerRequest,
+    _rl: None = Depends(rate_limit(max_requests=20, window_seconds=60)),
+):
     state = assert_capability_ready("voice_changer")
     try:
         return VoiceConversionJobService().convert(payload.model_dump())
