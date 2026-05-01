@@ -1,8 +1,0 @@
-{
-  "name": "finevoice-style-audio-studio-patch-pack",
-  "version": "P0-P7",
-  "target_repo": "audio-main",
-  "primary_docs": "docs/finevoice-audio-studio-patch/README.md",
-  "apply_mode": "additive-first",
-  "contains": ["docs", "backend scaffold", "frontend scaffold", "tests", "schemas", "ci verify script"]
-}
