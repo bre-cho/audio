@@ -119,6 +119,30 @@ class StorageService:
             Metadata={"sha256": checksum},
         )
 
+        # Verify the object was stored correctly by checking its size and
+        # checksum metadata (mirrors the local backend's write integrity check).
+        try:
+            head = client.head_object(Bucket=self.s3_bucket, Key=clean_key)
+            stored_size = head.get("ContentLength", -1)
+            stored_checksum = head.get("Metadata", {}).get("sha256", "")
+            if stored_size != len(data):
+                raise RuntimeError(
+                    f"S3 write size mismatch: expected={len(data)} actual={stored_size}"
+                )
+            if stored_checksum and stored_checksum != checksum:
+                raise RuntimeError(
+                    f"S3 write checksum mismatch: expected={checksum} actual={stored_checksum}"
+                )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            # head_object failure (e.g. eventual consistency on some stores)
+            # is non-fatal but worth logging; callers can choose to re-validate.
+            import logging
+            logging.getLogger(__name__).warning(
+                "S3 head_object verification failed for %s: %s", clean_key, exc
+            )
+
         return StoredObject(
             key=clean_key,
             public_url=self._resolve_s3_public_url(clean_key),

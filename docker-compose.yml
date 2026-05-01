@@ -113,7 +113,6 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/audio_ai
       REDIS_URL: redis://redis:6379/0
-      BACKEND_SCHEMA_BOOTSTRAP: audio-factory-migrate
     command: celery -A app.workers.celery_app.celery_app beat --loglevel=info
 
   flower:

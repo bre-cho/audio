@@ -12,7 +12,7 @@ class VoiceConversionResult:
 
 
 class VoiceConversionAdapterV2:
-    def convert(self, *, input_path: str, target_voice_id: str, output_path: str) -> VoiceConversionResult:
+    def convert(self, *, input_path: str, target_voice_id: str, output_path: str, preserve_formants: bool = True) -> VoiceConversionResult:
         provider = os.getenv("VOICE_CONVERSION_PROVIDER", "disabled").lower()
         if provider in {"", "disabled", "none"}:
             raise RuntimeError("voice_conversion_provider_disabled: set VOICE_CONVERSION_PROVIDER")
@@ -22,6 +22,7 @@ class VoiceConversionAdapterV2:
                 input_path=input_path,
                 target_voice_id=target_voice_id,
                 output_path=output_path,
+                preserve_formants=preserve_formants,
             )
             return VoiceConversionResult(output_path=r.output_path, provider=r.provider, metadata=r.metadata)
         if provider == "rvc":
@@ -30,6 +31,7 @@ class VoiceConversionAdapterV2:
                 input_path=input_path,
                 target_voice_id=target_voice_id,
                 output_path=output_path,
+                preserve_formants=preserve_formants,
             )
             return VoiceConversionResult(output_path=r.output_path, provider=r.provider, metadata=r.metadata)
         if provider == "openvoice":
@@ -38,6 +40,7 @@ class VoiceConversionAdapterV2:
                 input_path=input_path,
                 target_voice_id=target_voice_id,
                 output_path=output_path,
+                preserve_formants=preserve_formants,
             )
             return VoiceConversionResult(output_path=r.output_path, provider=r.provider, metadata=r.metadata)
         raise RuntimeError(f"unsupported_voice_conversion_provider:{provider}")
