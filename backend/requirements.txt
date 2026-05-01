@@ -12,3 +12,5 @@ aiofiles
 alembic
 boto3
 PyJWT
+openai-whisper
+replicate

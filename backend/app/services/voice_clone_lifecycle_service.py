@@ -16,4 +16,7 @@ class VoiceCloneLifecycleService:
         return {"status": "ready", "external_voice_id": external_voice_id}
 
     def delete_clone(self, external_voice_id: str) -> dict:
-        raise NotImplementedError("provider_delete_clone_not_wired")
+        from app.providers.elevenlabs import ElevenLabsProvider
+        client = ElevenLabsProvider().client
+        client.request("DELETE", f"/v1/voices/{external_voice_id}")
+        return {"status": "deleted", "external_voice_id": external_voice_id}

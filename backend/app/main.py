@@ -1,15 +1,28 @@
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import ARTIFACT_ROOT
+from app.core.rate_limit import rate_limit
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title='API He thong AI Am thanh', version='0.1.0')
+
+    # CORS — tighten origins in production via CORS_ORIGINS env var
+    origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get('/healthz', tags=['health'])
     async def healthcheck() -> dict[str, str]:
